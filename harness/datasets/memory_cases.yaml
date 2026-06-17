@@ -1,0 +1,14 @@
+- id: memory_preference_001
+  suite: memory
+  user_id: eval_memory_001
+  turns:
+    - user: "我以后都喜欢安静一点的房间"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: preference
+      content_contains:
+        - 安静
+    rag_used: false

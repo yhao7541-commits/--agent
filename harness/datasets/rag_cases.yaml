@@ -1,0 +1,20 @@
+- id: rag_policy_001
+  suite: rag
+  user_id: eval_rag_001
+  turns:
+    - user: "如果我迟到20分钟会怎么样？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_greeting_001
+  suite: rag
+  user_id: eval_rag_002
+  turns:
+    - user: "你好"
+  expected:
+    intent: greeting
+    rag_used: false

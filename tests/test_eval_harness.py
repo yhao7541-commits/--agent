@@ -1,0 +1,18 @@
+from harness.runners.run_all import load_cases, run_eval
+
+
+def test_eval_harness_loads_yaml_cases():
+    cases = load_cases()
+
+    assert cases
+    assert any(case["id"] == "booking_missing_date_001" for case in cases)
+
+
+def test_eval_harness_outputs_json_report_with_metrics():
+    report = run_eval()
+
+    assert report["case_count"] > 0
+    assert report["metrics"]["intent_accuracy"] >= 0.85
+    assert report["metrics"]["tool_selection_accuracy"] >= 0.85
+    assert report["metrics"]["confirmation_compliance"] == 1.0
+    assert report["passed"] is True

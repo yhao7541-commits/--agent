@@ -1,0 +1,20 @@
+- id: escalation_refund_001
+  suite: escalation
+  user_id: eval_escalation_001
+  turns:
+    - user: "我要退款，昨天的服务很差，我要投诉"
+  expected:
+    intent: escalation
+    escalated: true
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_low_confidence_001
+  suite: escalation
+  user_id: eval_escalation_002
+  turns:
+    - user: "随便吧那个什么处理一下"
+  expected:
+    escalated: true
+    required_tools:
+      - escalate_to_human

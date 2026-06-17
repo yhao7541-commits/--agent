@@ -1,0 +1,27 @@
+- id: booking_missing_date_001
+  suite: booking
+  user_id: eval_booking_001
+  turns:
+    - user: "我想约一个肩颈放松"
+  expected:
+    intent: booking
+    missing_slots:
+      - date
+      - time_window
+    forbidden_tools:
+      - create_booking
+    rag_used: false
+
+- id: booking_confirm_001
+  suite: booking
+  user_id: eval_booking_002
+  turns:
+    - user: "我想明天下午3点约肩颈放松"
+    - user: "确认"
+  expected:
+    intent: booking
+    required_tools:
+      - check_schedule
+      - create_booking
+    booking_completed: true
+    rag_used: false
