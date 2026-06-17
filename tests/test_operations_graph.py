@@ -111,6 +111,41 @@ def test_complete_booking_confirmation_contract_has_business_summary():
         assert label in result["reply"]
 
 
+def test_unavailable_preferred_staff_suggests_alternative_without_booking_confirmation():
+    result = run_operations_turn(
+        {
+            "user_id": "user_012",
+            "conversation_id": "conv_012",
+            "message": "我想明天下午3点约肩颈放松，指定李雷",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["confirmation_required"] is False
+    assert result["booking_issue"]["type"] == "staff_unavailable"
+    assert "李雷" in result["booking_issue"]["message"]
+    assert result["booking_issue"]["alternatives"]
+    assert all(plan["tool_name"] != "create_booking" for plan in result["tool_plan"])
+    assert "可选" in result["reply"] or "替代" in result["reply"]
+
+
+def test_schedule_conflict_suggests_nearby_times_without_booking_confirmation():
+    result = run_operations_turn(
+        {
+            "user_id": "user_013",
+            "conversation_id": "conv_013",
+            "message": "我想明天下午5点约肩颈放松",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["confirmation_required"] is False
+    assert result["booking_issue"]["type"] == "time_conflict"
+    assert result["booking_issue"]["alternatives"]
+    assert all(plan["tool_name"] != "create_booking" for plan in result["tool_plan"])
+    assert "可选" in result["reply"] or "附近" in result["reply"]
+
+
 def test_confirmed_booking_executes_create_booking():
     pending = run_operations_turn(
         {

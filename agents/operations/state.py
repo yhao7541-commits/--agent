@@ -8,6 +8,7 @@ class OperationsAgentState(TypedDict, total=False):
     intent: str
     confidence: float
     booking_slots: dict[str, Any]
+    booking_issue: dict[str, Any]
     missing_slots: list[str]
     customer_context: dict[str, Any]
     retrieved_knowledge: list[dict[str, Any]]

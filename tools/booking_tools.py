@@ -23,6 +23,11 @@ def search_services(arguments: BaseModel, context) -> dict:
 
 
 def check_schedule(arguments: BaseModel, context) -> dict:
+    if getattr(arguments, "time_window", "") == "17:00":
+        return {
+            "available": False,
+            "alternatives": ["16:00", "18:00"],
+        }
     return {
         "available": True,
         "alternatives": [],
@@ -31,6 +36,17 @@ def check_schedule(arguments: BaseModel, context) -> dict:
 
 def find_available_staff(arguments: BaseModel, context) -> dict:
     preferred_staff = getattr(arguments, "preferred_staff", None)
+    if preferred_staff == "李雷":
+        return {
+            "staff": [
+                {
+                    "id": "staff_002",
+                    "name": "张伟",
+                    "available": True,
+                    "specialties": [getattr(arguments, "service_type", "wellness service")],
+                }
+            ]
+        }
     staff_name = preferred_staff or "张伟"
     return {
         "staff": [

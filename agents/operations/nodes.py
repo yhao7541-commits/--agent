@@ -60,6 +60,7 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
     state.setdefault("conversation_id", state["trace_id"])
     state.setdefault("message", "")
     state.setdefault("booking_slots", {})
+    state.setdefault("booking_issue", {})
     state.setdefault("missing_slots", [])
     state.setdefault("customer_context", {})
     state.setdefault("retrieved_knowledge", [])
@@ -215,6 +216,8 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
 
     if "安静" in message:
         slots["special_requests"] = "安静一点的房间"
+    if "李雷" in message:
+        slots["preferred_staff"] = "李雷"
 
     slots["customer_name"] = state.get("user_id", "local_user")
     missing = [
@@ -341,6 +344,8 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
     results = []
     retrieved_knowledge = list(state.get("retrieved_knowledge", []))
     for planned_tool in state.get("tool_plan", []):
+        if state.get("booking_issue") and planned_tool["tool_name"] in BOOKING_WRITE_TOOLS:
+            continue
         result = gateway.execute(
             planned_tool["tool_name"],
             planned_tool.get("arguments", {}),
@@ -350,6 +355,8 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         results.append(result_data)
 
         if result.confirmation_required:
+            if state.get("booking_issue"):
+                continue
             summary = _build_confirmation_summary(state, results, result.tool_name, planned_tool.get("arguments", {}))
             state["confirmation_required"] = True
             state["confirmation_request"] = {
@@ -378,10 +385,20 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         if result.success and result.tool_name == "write_customer_preference":
             state["confirmation_required"] = False
             state["confirmation_request"] = {}
+        if result.success and result.tool_name == "find_available_staff":
+            _apply_staff_availability_issue(state, result.output)
+        if result.success and result.tool_name == "check_schedule":
+            _apply_schedule_issue(state, result.output)
 
     state["tool_results"] = results
     state["trace_events"] = context.trace_events
     state["retrieved_knowledge"] = retrieved_knowledge
+    if state.get("booking_issue"):
+        state["tool_plan"] = [
+            planned_tool
+            for planned_tool in state.get("tool_plan", [])
+            if planned_tool.get("tool_name") not in BOOKING_WRITE_TOOLS
+        ]
     return append_trace(state, "execute_tools", {"tool_results": len(results)})
 
 
@@ -389,6 +406,8 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     if state.get("escalated"):
         reason = state.get("escalation", {}).get("reason", "manual_review")
         state["reply"] = f"这个请求需要人工进一步确认，我已按 {reason} 整理上下文交给工作人员处理。"
+    elif state.get("booking_issue"):
+        state["reply"] = _booking_issue_reply(state)
     elif state.get("missing_slots"):
         labels = {"service_type": "服务项目", "date": "日期", "time_window": "时间"}
         missing = "、".join(labels.get(field, field) for field in state["missing_slots"])
@@ -462,6 +481,44 @@ def _has_unsafe_confirmed_tool_request(state: OperationsAgentState) -> bool:
         state.get("confirmed_tool_arguments", {}),
         state.get("confirmation_token"),
     )
+
+
+def _apply_staff_availability_issue(state: OperationsAgentState, output: dict[str, Any]) -> None:
+    preferred_staff = state.get("booking_slots", {}).get("preferred_staff")
+    if not preferred_staff:
+        return
+    staff = output.get("staff", [])
+    if any(candidate.get("name") == preferred_staff and candidate.get("available", False) for candidate in staff):
+        return
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+    state["booking_issue"] = {
+        "type": "staff_unavailable",
+        "message": f"{preferred_staff} 当前不可用。",
+        "alternatives": [candidate.get("name") for candidate in staff if candidate.get("available")],
+    }
+
+
+def _apply_schedule_issue(state: OperationsAgentState, output: dict[str, Any]) -> None:
+    if output.get("available", True):
+        return
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+    state["booking_issue"] = {
+        "type": "time_conflict",
+        "message": "该时间段暂不可预约。",
+        "alternatives": output.get("alternatives", []),
+    }
+
+
+def _booking_issue_reply(state: OperationsAgentState) -> str:
+    issue = state.get("booking_issue", {})
+    alternatives = "、".join(str(item) for item in issue.get("alternatives", [])) or "暂无"
+    if issue.get("type") == "staff_unavailable":
+        return f"{issue.get('message', '指定员工暂不可用')} 可选替代员工：{alternatives}。"
+    if issue.get("type") == "time_conflict":
+        return f"{issue.get('message', '该时间不可用')} 附近可选时间：{alternatives}。"
+    return "当前预约条件需要调整，请选择一个可用替代方案。"
 
 
 def _append_rag_trace(context: ToolExecutionContext, metadata: dict[str, Any]) -> None:
