@@ -79,6 +79,26 @@ def test_operations_chat_executes_confirmed_booking():
     assert "预约已创建" in body["reply"]
 
 
+def test_operations_chat_exposes_human_escalation():
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_003",
+            "conversation_id": "conv_003",
+            "message": "按摩后肩膀受伤了，现在很疼怎么办？",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["escalated"] is True
+    assert body["intent"] == "escalation"
+    assert any(call["tool_name"] == "escalate_to_human" for call in body["tool_calls"])
+    assert "raw_prompt" not in body
+
+
 def test_operations_router_is_registered_in_api_router_list():
     from api import api_routers
 

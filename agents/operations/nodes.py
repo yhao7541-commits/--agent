@@ -14,6 +14,8 @@ from .state import OperationsAgentState
 
 BOOKING_KEYWORDS = ("约", "预约", "改约", "取消", "安排")
 CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意")
+MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生")
+REFUND_ESCALATION_KEYWORDS = ("退款", "投诉", "服务很差", "争议")
 
 
 def append_trace(
@@ -62,7 +64,25 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
 
 def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     message = state.get("message", "")
-    if state.get("confirmed_tool_name") in {"create_booking", "reschedule_booking", "cancel_booking"}:
+    if any(keyword in message for keyword in MEDICAL_ESCALATION_KEYWORDS):
+        intent = "escalation"
+        confidence = 1.0
+        state["escalated"] = True
+        state["escalation"] = _build_escalation(
+            state,
+            reason="medical_concern",
+            requested_action="medical_or_safety_follow_up",
+        )
+    elif any(keyword in message for keyword in REFUND_ESCALATION_KEYWORDS):
+        intent = "escalation"
+        confidence = 1.0
+        state["escalated"] = True
+        state["escalation"] = _build_escalation(
+            state,
+            reason="refund_dispute",
+            requested_action="refund_or_complaint_review",
+        )
+    elif state.get("confirmed_tool_name") in {"create_booking", "reschedule_booking", "cancel_booking"}:
         intent = "booking"
         confidence = 1.0
     elif any(keyword in message for keyword in BOOKING_KEYWORDS):
@@ -78,10 +98,11 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
         intent = "unknown"
         confidence = 0.4
         state["escalated"] = True
-        state["escalation"] = {
-            "reason": "low_confidence",
-            "summary": "Unable to classify the customer request confidently.",
-        }
+        state["escalation"] = _build_escalation(
+            state,
+            reason="low_confidence",
+            requested_action="manual_intent_review",
+        )
 
     state["intent"] = intent
     state["confidence"] = confidence
@@ -98,6 +119,8 @@ def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
 
 def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     if state.get("intent") != "booking":
+        return append_trace(state, "extract_booking_slots", {"skipped": True})
+    if state.get("escalated"):
         return append_trace(state, "extract_booking_slots", {"skipped": True})
     if state.get("confirmed_tool_name"):
         state["booking_slots"] = dict(state.get("confirmed_tool_arguments", {}))
@@ -150,7 +173,19 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
     plan: list[dict[str, Any]] = []
     intent = state.get("intent")
 
-    if state.get("confirmed_tool_name"):
+    if state.get("escalated"):
+        escalation = state.get("escalation", {})
+        plan.append(
+            {
+                "tool_name": "escalate_to_human",
+                "arguments": {
+                    "reason": escalation.get("reason", "manual_review"),
+                    "summary": escalation.get("summary", ""),
+                },
+                "permission": "external",
+            }
+        )
+    elif state.get("confirmed_tool_name"):
         plan.append(
             {
                 "tool_name": state["confirmed_tool_name"],
@@ -257,7 +292,8 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
 
 def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     if state.get("escalated"):
-        state["reply"] = "这个请求需要人工进一步确认，我会整理上下文后交给工作人员处理。"
+        reason = state.get("escalation", {}).get("reason", "manual_review")
+        state["reply"] = f"这个请求需要人工进一步确认，我已按 {reason} 整理上下文交给工作人员处理。"
     elif state.get("missing_slots"):
         labels = {"service_type": "服务项目", "date": "日期", "time_window": "时间"}
         missing = "、".join(labels.get(field, field) for field in state["missing_slots"])
@@ -350,4 +386,20 @@ def _build_confirmation_summary(
         "price": "门店价目表为准",
         "special_requests": slots.get("special_requests", "无"),
         "cancellation_policy": "如需取消或更改预约，请提前至少2小时通知。",
+    }
+
+
+def _build_escalation(
+    state: OperationsAgentState,
+    reason: str,
+    requested_action: str,
+) -> dict[str, Any]:
+    return {
+        "reason": reason,
+        "customer_id": state.get("user_id", "local_user"),
+        "conversation_id": state.get("conversation_id", ""),
+        "summary": state.get("message", ""),
+        "requested_action": requested_action,
+        "known_context": state.get("customer_context", {}),
+        "recommended_next_step": "请由人工工作人员核实情况并继续处理。",
     }

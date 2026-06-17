@@ -111,3 +111,51 @@ def test_policy_question_uses_knowledge_tool_path():
     assert any(plan["tool_name"] == "search_knowledge_base" for plan in result["tool_plan"])
     assert result["retrieved_knowledge"]
     assert result["rag_used"] is True
+
+
+def test_medical_concern_escalates_to_human_with_summary():
+    result = run_operations_turn(
+        {
+            "user_id": "user_005",
+            "conversation_id": "conv_005",
+            "message": "按摩后肩膀受伤了，现在很疼怎么办？",
+        }
+    )
+
+    assert result["escalated"] is True
+    assert result["escalation"]["reason"] == "medical_concern"
+    assert any(plan["tool_name"] == "escalate_to_human" for plan in result["tool_plan"])
+    assert any(
+        tool_result.get("tool_name") == "escalate_to_human" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+    assert result["escalation"]["summary"]
+    assert "人工" in result["reply"]
+
+
+def test_refund_dispute_escalates_to_human():
+    result = run_operations_turn(
+        {
+            "user_id": "user_006",
+            "conversation_id": "conv_006",
+            "message": "我要退款，昨天的服务很差，我要投诉",
+        }
+    )
+
+    assert result["escalated"] is True
+    assert result["escalation"]["reason"] == "refund_dispute"
+    assert any(plan["tool_name"] == "escalate_to_human" for plan in result["tool_plan"])
+
+
+def test_low_confidence_unknown_request_escalates_to_human():
+    result = run_operations_turn(
+        {
+            "user_id": "user_007",
+            "conversation_id": "conv_007",
+            "message": "随便吧那个什么处理一下",
+        }
+    )
+
+    assert result["escalated"] is True
+    assert result["escalation"]["reason"] == "low_confidence"
+    assert any(plan["tool_name"] == "escalate_to_human" for plan in result["tool_plan"])
