@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import time
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +75,7 @@ def main() -> int:
 
 
 def _run_case(case: dict[str, Any]) -> dict[str, Any]:
+    started_at = time.perf_counter()
     turn_results: list[dict[str, Any]] = []
     pending_confirmation: dict[str, Any] | None = None
     for index, turn in enumerate(case["turns"]):
@@ -113,6 +116,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         "id": case["id"],
         "suite": case.get("suite", "default"),
         "passed": passed,
+        "latency_ms": round((time.perf_counter() - started_at) * 1000, 3),
         "checks": checks,
     }
 
@@ -130,6 +134,7 @@ def _compute_metrics(case_results: list[dict[str, Any]]) -> dict[str, float]:
         "memory_write_precision": _ratio(case_results, "memory_proposal"),
         "escalation_accuracy": _ratio(case_results, "escalation"),
         "security_policy_accuracy": _ratio(case_results, "security_policy"),
+        "p95_latency_ms": _p95_latency(case_results),
     }
 
 
@@ -139,6 +144,14 @@ def _ratio(case_results: list[dict[str, Any]], check_name: str) -> float:
         return 1.0
     passed = [case for case in applicable if case["checks"][check_name] is True]
     return round(len(passed) / len(applicable), 4)
+
+
+def _p95_latency(case_results: list[dict[str, Any]]) -> float:
+    latencies = sorted(case.get("latency_ms", 0.0) for case in case_results)
+    if not latencies:
+        return 0.0
+    index = max(0, math.ceil(len(latencies) * 0.95) - 1)
+    return round(float(latencies[min(index, len(latencies) - 1)]), 3)
 
 
 if __name__ == "__main__":

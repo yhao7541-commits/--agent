@@ -33,7 +33,9 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["tool_selection_accuracy"] >= 0.85
     assert report["metrics"]["tool_argument_accuracy"] >= 0.85
     assert report["metrics"]["confirmation_compliance"] == 1.0
+    assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
+    assert all(case["latency_ms"] >= 0 for case in report["cases"])
     assert report["passed"] is True
 
 
