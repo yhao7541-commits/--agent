@@ -52,6 +52,7 @@ def run_eval(dataset_dir: Path | None = None) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run deterministic operations-agent evals.")
+    parser.add_argument("--smoke", action="store_true", help="Run the default smoke eval dataset.")
     parser.add_argument("--output", type=Path, help="Optional path for JSON report.")
     args = parser.parse_args()
 
