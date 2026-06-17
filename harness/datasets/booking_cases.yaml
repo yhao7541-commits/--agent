@@ -25,3 +25,32 @@
       - create_booking
     booking_completed: true
     rag_used: false
+
+- id: booking_cancel_001
+  suite: booking
+  user_id: eval_booking_003
+  turns:
+    - user: "取消预约 booking_1234"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    tool_arguments:
+      cancel_booking:
+        booking_id: booking_1234
+    rag_used: false
+
+- id: booking_reschedule_001
+  suite: booking
+  user_id: eval_booking_004
+  turns:
+    - user: "把 booking_5678 改约到明天下午3点"
+  expected:
+    intent: reschedule
+    required_tools:
+      - reschedule_booking
+    tool_arguments:
+      reschedule_booking:
+        booking_id: booking_5678
+        new_time_window: "15:00"
+    rag_used: false

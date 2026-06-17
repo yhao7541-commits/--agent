@@ -14,13 +14,18 @@ from harness.evaluators.memory_quality import memory_proposal_passed
 from harness.evaluators.rag_grounding import rag_decision_passed
 from harness.evaluators.security_policy import security_policy_passed
 from harness.evaluators.slot_accuracy import missing_slots_passed
-from harness.evaluators.tool_accuracy import confirmation_compliant, tool_selection_passed
+from harness.evaluators.tool_accuracy import (
+    confirmation_compliant,
+    tool_arguments_passed,
+    tool_selection_passed,
+)
 
 
 DATASET_DIR = Path(__file__).resolve().parents[1] / "datasets"
 THRESHOLDS = {
     "intent_accuracy": 0.85,
     "tool_selection_accuracy": 0.85,
+    "tool_argument_accuracy": 0.85,
     "confirmation_compliance": 1.0,
     "booking_completion_rate": 0.80,
     "rag_decision_accuracy": 0.85,
@@ -93,6 +98,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         "intent": final_result.get("intent") == expected.get("intent") if "intent" in expected else None,
         "missing_slots": missing_slots_passed(final_result, expected),
         "tool_selection": tool_selection_passed(turn_results, expected),
+        "tool_arguments": tool_arguments_passed(turn_results, expected),
         "confirmation_compliance": confirmation_compliant(turn_results),
         "booking_completion": booking_completed(turn_results, expected),
         "rag_decision": rag_decision_passed(final_result, expected),
@@ -114,6 +120,7 @@ def _compute_metrics(case_results: list[dict[str, Any]]) -> dict[str, float]:
         "intent_accuracy": _ratio(case_results, "intent"),
         "slot_recall": _ratio(case_results, "missing_slots"),
         "tool_selection_accuracy": _ratio(case_results, "tool_selection"),
+        "tool_argument_accuracy": _ratio(case_results, "tool_arguments"),
         "confirmation_compliance": _ratio(case_results, "confirmation_compliance"),
         "booking_completion_rate": _ratio(case_results, "booking_completion"),
         "rag_decision_accuracy": _ratio(case_results, "rag_decision"),
