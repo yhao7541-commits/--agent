@@ -62,7 +62,10 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
 
 def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     message = state.get("message", "")
-    if any(keyword in message for keyword in BOOKING_KEYWORDS):
+    if state.get("confirmed_tool_name") in {"create_booking", "reschedule_booking", "cancel_booking"}:
+        intent = "booking"
+        confidence = 1.0
+    elif any(keyword in message for keyword in BOOKING_KEYWORDS):
         intent = "booking"
         confidence = 0.9
     elif any(keyword in message for keyword in CONSULTATION_KEYWORDS):
@@ -96,6 +99,14 @@ def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
 def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     if state.get("intent") != "booking":
         return append_trace(state, "extract_booking_slots", {"skipped": True})
+    if state.get("confirmed_tool_name"):
+        state["booking_slots"] = dict(state.get("confirmed_tool_arguments", {}))
+        state["missing_slots"] = []
+        return append_trace(
+            state,
+            "extract_booking_slots",
+            {"source": "confirmed_tool_arguments", "missing_slots": []},
+        )
 
     message = state.get("message", "")
     slots: dict[str, Any] = {}
@@ -132,7 +143,16 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
     plan: list[dict[str, Any]] = []
     intent = state.get("intent")
 
-    if intent == "consultation":
+    if state.get("confirmed_tool_name"):
+        plan.append(
+            {
+                "tool_name": state["confirmed_tool_name"],
+                "arguments": state.get("confirmed_tool_arguments", {}),
+                "permission": "write",
+                "confirmed": True,
+            }
+        )
+    elif intent == "consultation":
         plan.append(
             {
                 "tool_name": "search_knowledge_base",
@@ -171,6 +191,7 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         user_id=state.get("user_id", "local_user"),
         conversation_id=state.get("conversation_id", ""),
         trace_id=state.get("trace_id", ""),
+        confirmed_tools={state["confirmed_tool_name"]} if state.get("confirmed_tool_name") else set(),
         trace_events=list(state.get("trace_events", [])),
     )
 
@@ -196,6 +217,9 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         if result.success and result.tool_name == "search_knowledge_base":
             retrieved_knowledge = result.output.get("chunks", [])
             state["rag_used"] = True
+        if result.success and result.tool_name in {"create_booking", "reschedule_booking", "cancel_booking"}:
+            state["confirmation_required"] = False
+            state["confirmation_request"] = {}
 
     state["tool_results"] = results
     state["trace_events"] = context.trace_events
@@ -221,6 +245,9 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
         )
     elif state.get("intent") == "consultation":
         state["reply"] = "根据服务政策，相关问题需要以门店知识库为准；我已检索到可参考的服务说明。"
+    elif _successful_tool_result(state, "create_booking"):
+        booking_result = _successful_tool_result(state, "create_booking")
+        state["reply"] = f"预约已创建，预约编号：{booking_result['output']['booking_id']}。"
     elif state.get("intent") == "greeting":
         state["reply"] = "您好，我可以协助服务咨询、预约安排和客户偏好记录。"
     else:
@@ -259,3 +286,10 @@ def _normalize_hour(period: str | None, raw_hour: str) -> str:
     if period in {"下午", "晚上"} and hour < 12:
         hour += 12
     return f"{hour:02d}:00"
+
+
+def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict[str, Any] | None:
+    for result in state.get("tool_results", []):
+        if result.get("tool_name") == tool_name and result.get("success"):
+            return result
+    return None

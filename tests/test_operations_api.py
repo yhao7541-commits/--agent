@@ -49,6 +49,36 @@ def test_operations_chat_returns_confirmation_request_for_write_action():
     assert body["tool_calls"]
 
 
+def test_operations_chat_executes_confirmed_booking():
+    client = make_client()
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "我想明天下午3点约肩颈放松",
+        },
+    ).json()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["confirmation_required"] is False
+    assert body["executed_tools"][0]["tool_name"] == "create_booking"
+    assert body["executed_tools"][0]["success"] is True
+    assert "预约已创建" in body["reply"]
+
+
 def test_operations_router_is_registered_in_api_router_list():
     from api import api_routers
 

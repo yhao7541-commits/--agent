@@ -13,6 +13,8 @@ class OperationsAgentState(TypedDict, total=False):
     retrieved_knowledge: list[dict[str, Any]]
     tool_plan: list[dict[str, Any]]
     tool_results: list[dict[str, Any]]
+    confirmed_tool_name: str
+    confirmed_tool_arguments: dict[str, Any]
     confirmation_required: bool
     confirmation_request: dict[str, Any]
     memory_proposals: list[dict[str, Any]]

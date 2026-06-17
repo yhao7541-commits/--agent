@@ -13,6 +13,8 @@ class OperationsChatRequest(BaseModel):
     user_id: str = "local_user"
     conversation_id: str
     message: str
+    confirmed_tool_name: str | None = None
+    confirmed_tool_arguments: dict[str, Any] = Field(default_factory=dict)
 
 
 class OperationsChatResponse(BaseModel):
@@ -22,6 +24,7 @@ class OperationsChatResponse(BaseModel):
     confirmation_request: dict[str, Any] = Field(default_factory=dict)
     trace_id: str
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    executed_tools: list[dict[str, Any]] = Field(default_factory=list)
     memory_proposals: list[dict[str, Any]] = Field(default_factory=list)
     rag_used: bool = False
     escalated: bool = False
@@ -37,6 +40,7 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         confirmation_request=result.get("confirmation_request", {}),
         trace_id=result.get("trace_id", ""),
         tool_calls=result.get("tool_plan", []),
+        executed_tools=result.get("tool_results", []),
         memory_proposals=result.get("memory_proposals", []),
         rag_used=result.get("rag_used", False),
         escalated=result.get("escalated", False),

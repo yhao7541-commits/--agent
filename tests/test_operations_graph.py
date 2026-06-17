@@ -44,6 +44,34 @@ def test_complete_booking_requires_confirmation_before_create_booking():
     )
 
 
+def test_confirmed_booking_executes_create_booking():
+    pending = run_operations_turn(
+        {
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "我想明天下午3点约肩颈放松",
+        }
+    )
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["confirmation_required"] is False
+    assert any(
+        tool_result.get("tool_name") == "create_booking" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+    assert "预约已创建" in result["reply"]
+
+
 def test_policy_question_uses_knowledge_tool_path():
     result = run_operations_turn(
         {
