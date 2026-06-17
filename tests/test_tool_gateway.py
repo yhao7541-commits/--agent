@@ -74,6 +74,50 @@ def test_unconfirmed_create_booking_is_rejected():
     assert result.error["code"] == "confirmation_required"
 
 
+def test_unconfirmed_customer_preference_write_is_rejected():
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute(
+        "write_customer_preference",
+        {
+            "user_id": "user_001",
+            "preference_type": "preference",
+            "preference_value": "喜欢安静房间",
+            "evidence": "我以后都喜欢安静一点的房间",
+        },
+        context,
+    )
+
+    assert result.success is False
+    assert result.confirmation_required is True
+    assert result.error["code"] == "confirmation_required"
+
+
+def test_confirmed_customer_preference_write_executes():
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(
+        user_id="user_001",
+        conversation_id="conv_001",
+        trace_id="trace_001",
+        confirmed_tools={"write_customer_preference"},
+    )
+
+    result = gateway.execute(
+        "write_customer_preference",
+        {
+            "user_id": "user_001",
+            "preference_type": "preference",
+            "preference_value": "喜欢安静房间",
+            "evidence": "我以后都喜欢安静一点的房间",
+        },
+        context,
+    )
+
+    assert result.success is True
+    assert result.output["status"] == "stored"
+
+
 def test_read_tool_executes_without_confirmation_and_traces():
     gateway = ToolGateway(build_default_tool_registry())
     context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")

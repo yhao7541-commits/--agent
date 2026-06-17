@@ -9,6 +9,7 @@ from .nodes import (
     initialize_turn,
     load_customer_context,
     plan_tool_calls,
+    propose_memory_writes,
 )
 from .state import OperationsAgentState
 
@@ -19,6 +20,7 @@ def build_operations_graph():
     workflow.add_node("classify_intent", classify_intent)
     workflow.add_node("load_customer_context", load_customer_context)
     workflow.add_node("extract_booking_slots", extract_booking_slots)
+    workflow.add_node("propose_memory_writes", propose_memory_writes)
     workflow.add_node("plan_tool_calls", plan_tool_calls)
     workflow.add_node("execute_tools", execute_tools)
     workflow.add_node("generate_response", generate_response)
@@ -28,7 +30,8 @@ def build_operations_graph():
     workflow.add_edge("initialize_turn", "classify_intent")
     workflow.add_edge("classify_intent", "load_customer_context")
     workflow.add_edge("load_customer_context", "extract_booking_slots")
-    workflow.add_edge("extract_booking_slots", "plan_tool_calls")
+    workflow.add_edge("extract_booking_slots", "propose_memory_writes")
+    workflow.add_edge("propose_memory_writes", "plan_tool_calls")
     workflow.add_edge("plan_tool_calls", "execute_tools")
     workflow.add_edge("execute_tools", "generate_response")
     workflow.add_edge("generate_response", "finalize_turn")

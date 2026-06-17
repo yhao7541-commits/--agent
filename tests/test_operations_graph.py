@@ -113,6 +113,68 @@ def test_policy_question_uses_knowledge_tool_path():
     assert result["rag_used"] is True
 
 
+def test_memory_preference_proposes_confirmed_write_tool():
+    result = run_operations_turn(
+        {
+            "user_id": "user_008",
+            "conversation_id": "conv_008",
+            "message": "我以后都喜欢安静一点的房间",
+        }
+    )
+
+    assert result["intent"] == "memory"
+    assert result["escalated"] is False
+    assert result["memory_proposals"][0]["content"] == "喜欢安静房间"
+    assert result["confirmation_required"] is True
+    assert result["confirmation_request"]["tool_name"] == "write_customer_preference"
+    assert any(plan["tool_name"] == "write_customer_preference" for plan in result["tool_plan"])
+
+
+def test_confirmed_memory_write_executes_tool():
+    pending = run_operations_turn(
+        {
+            "user_id": "user_008",
+            "conversation_id": "conv_008",
+            "message": "我以后都喜欢安静一点的房间",
+        }
+    )
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_008",
+            "conversation_id": "conv_008",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+        }
+    )
+
+    assert result["intent"] == "memory"
+    assert result["confirmation_required"] is False
+    assert any(
+        tool_result.get("tool_name") == "write_customer_preference" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+    assert "偏好已保存" in result["reply"]
+
+
+def test_sensitive_memory_proposal_requires_confirmation():
+    result = run_operations_turn(
+        {
+            "user_id": "user_009",
+            "conversation_id": "conv_009",
+            "message": "我对精油过敏，请以后不要用",
+        }
+    )
+
+    proposal = result["memory_proposals"][0]
+
+    assert result["intent"] == "memory"
+    assert proposal["sensitivity"] == "sensitive"
+    assert proposal["requires_confirmation"] is True
+    assert result["confirmation_required"] is True
+
+
 def test_medical_concern_escalates_to_human_with_summary():
     result = run_operations_turn(
         {

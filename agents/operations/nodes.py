@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from memory.memory_proposals import extract_memory_proposals
 from tools.gateway import ToolGateway
 from tools.registry import build_default_tool_registry
 from tools.schemas import ToolExecutionContext
@@ -16,6 +17,9 @@ BOOKING_KEYWORDS = ("约", "预约", "改约", "取消", "安排")
 CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意")
 MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生")
 REFUND_ESCALATION_KEYWORDS = ("退款", "投诉", "服务很差", "争议")
+MEMORY_KEYWORDS = ("喜欢", "不喜欢", "过敏", "不要营销", "别营销")
+BOOKING_WRITE_TOOLS = {"create_booking", "reschedule_booking", "cancel_booking"}
+MEMORY_WRITE_TOOLS = {"write_customer_preference"}
 
 
 def append_trace(
@@ -82,8 +86,11 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="refund_dispute",
             requested_action="refund_or_complaint_review",
         )
-    elif state.get("confirmed_tool_name") in {"create_booking", "reschedule_booking", "cancel_booking"}:
+    elif state.get("confirmed_tool_name") in BOOKING_WRITE_TOOLS:
         intent = "booking"
+        confidence = 1.0
+    elif state.get("confirmed_tool_name") in MEMORY_WRITE_TOOLS:
+        intent = "memory"
         confidence = 1.0
     elif any(keyword in message for keyword in BOOKING_KEYWORDS):
         intent = "booking"
@@ -91,6 +98,9 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     elif any(keyword in message for keyword in CONSULTATION_KEYWORDS):
         intent = "consultation"
         confidence = 0.86
+    elif any(keyword in message for keyword in MEMORY_KEYWORDS):
+        intent = "memory"
+        confidence = 0.82
     elif message.strip() in {"你好", "您好", "hi", "hello"}:
         intent = "greeting"
         confidence = 0.8
@@ -169,6 +179,15 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     return append_trace(state, "extract_booking_slots", {"slots": slots, "missing_slots": missing})
 
 
+def propose_memory_writes(state: OperationsAgentState) -> OperationsAgentState:
+    if state.get("confirmed_tool_name") or state.get("escalated"):
+        return append_trace(state, "propose_memory_writes", {"skipped": True})
+
+    proposals = extract_memory_proposals(state.get("message", ""))
+    state["memory_proposals"] = [proposal.model_dump() for proposal in proposals]
+    return append_trace(state, "propose_memory_writes", {"proposal_count": len(proposals)})
+
+
 def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
     plan: list[dict[str, Any]] = []
     intent = state.get("intent")
@@ -192,6 +211,20 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
                 "arguments": state.get("confirmed_tool_arguments", {}),
                 "permission": "write",
                 "confirmed": True,
+            }
+        )
+    elif intent == "memory" and state.get("memory_proposals"):
+        proposal = state["memory_proposals"][0]
+        plan.append(
+            {
+                "tool_name": "write_customer_preference",
+                "arguments": {
+                    "user_id": state.get("user_id", "local_user"),
+                    "preference_type": proposal["type"],
+                    "preference_value": proposal["content"],
+                    "evidence": proposal["evidence"],
+                },
+                "permission": "sensitive",
             }
         )
     elif intent == "consultation":
@@ -268,19 +301,22 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         results.append(result_data)
 
         if result.confirmation_required:
-            summary = _build_confirmation_summary(state, results)
+            summary = _build_confirmation_summary(state, results, result.tool_name, planned_tool.get("arguments", {}))
             state["confirmation_required"] = True
             state["confirmation_request"] = {
                 "tool_name": result.tool_name,
                 "arguments": planned_tool.get("arguments", {}),
                 "summary": summary,
-                "message": "请确认是否创建这次预约。",
+                "message": _confirmation_message(result.tool_name),
             }
 
         if result.success and result.tool_name == "search_knowledge_base":
             retrieved_knowledge = result.output.get("chunks", [])
             state["rag_used"] = True
         if result.success and result.tool_name in {"create_booking", "reschedule_booking", "cancel_booking"}:
+            state["confirmation_required"] = False
+            state["confirmation_request"] = {}
+        if result.success and result.tool_name == "write_customer_preference":
             state["confirmation_required"] = False
             state["confirmation_request"] = {}
 
@@ -299,24 +335,14 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
         missing = "、".join(labels.get(field, field) for field in state["missing_slots"])
         state["reply"] = f"还需要补充{missing}，我才能继续为您安排预约。"
     elif state.get("confirmation_required"):
-        summary = state.get("confirmation_request", {}).get("summary", {})
-        state["reply"] = (
-            "请确认是否创建这次预约：\n"
-            f"服务：{summary.get('service', '待确认')}\n"
-            f"员工：{summary.get('staff', '待确认')}\n"
-            f"日期：{summary.get('date', '待确认')}\n"
-            f"时间：{summary.get('time', '待确认')}\n"
-            f"时长：{summary.get('duration', '待确认')}\n"
-            f"价格：{summary.get('price', '门店价目表为准')}\n"
-            f"特殊需求：{summary.get('special_requests', '无')}\n"
-            f"取消政策：{summary.get('cancellation_policy', '请提前至少2小时通知。')}\n"
-            "确认后我再创建预约。"
-        )
+        state["reply"] = _confirmation_reply(state)
     elif state.get("intent") == "consultation":
         state["reply"] = "根据服务政策，相关问题需要以门店知识库为准；我已检索到可参考的服务说明。"
     elif _successful_tool_result(state, "create_booking"):
         booking_result = _successful_tool_result(state, "create_booking")
         state["reply"] = f"预约已创建，预约编号：{booking_result['output']['booking_id']}。"
+    elif _successful_tool_result(state, "write_customer_preference"):
+        state["reply"] = "客户偏好已保存，后续服务安排会参考这条偏好。"
     elif state.get("intent") == "greeting":
         state["reply"] = "您好，我可以协助服务咨询、预约安排和客户偏好记录。"
     else:
@@ -367,7 +393,19 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
 def _build_confirmation_summary(
     state: OperationsAgentState,
     tool_results: list[dict[str, Any]],
+    tool_name: str = "create_booking",
+    arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if tool_name == "write_customer_preference":
+        arguments = arguments or {}
+        proposal = state.get("memory_proposals", [{}])[0] if state.get("memory_proposals") else {}
+        return {
+            "preference_type": arguments.get("preference_type", proposal.get("type", "preference")),
+            "preference_value": arguments.get("preference_value", proposal.get("content", "")),
+            "evidence": arguments.get("evidence", proposal.get("evidence", "")),
+            "sensitivity": proposal.get("sensitivity", "normal"),
+        }
+
     slots = state.get("booking_slots", {})
     staff_name = slots.get("preferred_staff") or "待确认员工"
     for result in tool_results:
@@ -387,6 +425,39 @@ def _build_confirmation_summary(
         "special_requests": slots.get("special_requests", "无"),
         "cancellation_policy": "如需取消或更改预约，请提前至少2小时通知。",
     }
+
+
+def _confirmation_message(tool_name: str) -> str:
+    if tool_name == "write_customer_preference":
+        return "请确认是否保存这条客户偏好。"
+    return "请确认是否创建这次预约。"
+
+
+def _confirmation_reply(state: OperationsAgentState) -> str:
+    request = state.get("confirmation_request", {})
+    summary = request.get("summary", {})
+    if request.get("tool_name") == "write_customer_preference":
+        return (
+            "请确认是否保存这条客户偏好：\n"
+            f"类型：{summary.get('preference_type', 'preference')}\n"
+            f"内容：{summary.get('preference_value', '')}\n"
+            f"依据：{summary.get('evidence', '')}\n"
+            f"敏感级别：{summary.get('sensitivity', 'normal')}\n"
+            "确认后我再写入客户记忆。"
+        )
+
+    return (
+        "请确认是否创建这次预约：\n"
+        f"服务：{summary.get('service', '待确认')}\n"
+        f"员工：{summary.get('staff', '待确认')}\n"
+        f"日期：{summary.get('date', '待确认')}\n"
+        f"时间：{summary.get('time', '待确认')}\n"
+        f"时长：{summary.get('duration', '待确认')}\n"
+        f"价格：{summary.get('price', '门店价目表为准')}\n"
+        f"特殊需求：{summary.get('special_requests', '无')}\n"
+        f"取消政策：{summary.get('cancellation_policy', '请提前至少2小时通知。')}\n"
+        "确认后我再创建预约。"
+    )
 
 
 def _build_escalation(

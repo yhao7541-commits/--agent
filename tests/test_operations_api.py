@@ -99,6 +99,26 @@ def test_operations_chat_exposes_human_escalation():
     assert "raw_prompt" not in body
 
 
+def test_operations_chat_exposes_memory_proposal_confirmation():
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_004",
+            "conversation_id": "conv_004",
+            "message": "我以后都喜欢安静一点的房间",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["memory_proposals"][0]["content"] == "喜欢安静房间"
+    assert body["confirmation_required"] is True
+    assert body["confirmation_request"]["tool_name"] == "write_customer_preference"
+    assert "raw_prompt" not in body
+
+
 def test_operations_router_is_registered_in_api_router_list():
     from api import api_routers
 
