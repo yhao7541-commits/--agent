@@ -49,6 +49,35 @@ def test_operations_chat_returns_confirmation_request_for_write_action():
     assert body["tool_calls"]
 
 
+def test_operations_chat_supports_booking_slot_follow_up():
+    client = make_client()
+    first_turn = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_010",
+            "conversation_id": "conv_010",
+            "message": "我想约一个肩颈放松",
+        },
+    ).json()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_010",
+            "conversation_id": "conv_010",
+            "message": "明天下午3点",
+            "booking_slots": first_turn["booking_slots"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"] == "booking"
+    assert body["missing_slots"] == []
+    assert body["booking_slots"]["service_type"] == "肩颈放松"
+    assert body["confirmation_required"] is True
+
+
 def test_operations_chat_executes_confirmed_booking():
     client = make_client()
     pending = client.post(

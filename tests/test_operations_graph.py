@@ -24,6 +24,47 @@ def test_incomplete_booking_asks_follow_up_without_create_booking():
     assert "日期" in result["reply"] or "时间" in result["reply"]
 
 
+def test_booking_slot_follow_up_merges_existing_slots():
+    first_turn = run_operations_turn(
+        {
+            "user_id": "user_010",
+            "conversation_id": "conv_010",
+            "message": "我想约一个肩颈放松",
+        }
+    )
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_010",
+            "conversation_id": "conv_010",
+            "message": "明天下午3点",
+            "booking_slots": first_turn["booking_slots"],
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["missing_slots"] == []
+    assert result["booking_slots"]["service_type"] == "肩颈放松"
+    assert result["booking_slots"]["time_window"] == "15:00"
+    assert result["confirmation_required"] is True
+    assert result["confirmation_request"]["tool_name"] == "create_booking"
+
+
+def test_fuzzy_booking_time_is_preserved_as_range():
+    result = run_operations_turn(
+        {
+            "user_id": "user_011",
+            "conversation_id": "conv_011",
+            "message": "我想明天下午约肩颈放松",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["missing_slots"] == []
+    assert result["booking_slots"]["time_window"] == "12:00-18:00"
+    assert result["confirmation_required"] is True
+
+
 def test_complete_booking_requires_confirmation_before_create_booking():
     result = run_operations_turn(
         {
