@@ -14,6 +14,7 @@ class OperationsChatRequest(BaseModel):
     conversation_id: str
     message: str
     booking_slots: dict[str, Any] = Field(default_factory=dict)
+    confirmation_decision: str | None = None
     confirmed_tool_name: str | None = None
     confirmed_tool_arguments: dict[str, Any] = Field(default_factory=dict)
     confirmation_token: str | None = None

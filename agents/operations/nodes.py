@@ -78,7 +78,12 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
 
 def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     message = state.get("message", "")
-    if _has_unsafe_confirmed_tool_request(state):
+    if state.get("confirmation_decision") == "rejected":
+        intent = "confirmation_rejected"
+        confidence = 1.0
+        state["confirmation_required"] = False
+        state["confirmation_request"] = {}
+    elif _has_unsafe_confirmed_tool_request(state):
         intent = "escalation"
         confidence = 1.0
         state["escalated"] = True
@@ -277,7 +282,9 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
     plan: list[dict[str, Any]] = []
     intent = state.get("intent")
 
-    if state.get("escalated"):
+    if intent == "confirmation_rejected":
+        plan = []
+    elif state.get("escalated"):
         escalation = state.get("escalation", {})
         plan.append(
             {
@@ -462,7 +469,9 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
 
 
 def generate_response(state: OperationsAgentState) -> OperationsAgentState:
-    if state.get("escalated"):
+    if state.get("intent") == "confirmation_rejected":
+        state["reply"] = "已取消本次待确认操作，未执行任何写入。"
+    elif state.get("escalated"):
         reason = state.get("escalation", {}).get("reason", "manual_review")
         state["reply"] = f"这个请求需要人工进一步确认，我已按 {reason} 整理上下文交给工作人员处理。"
     elif state.get("booking_issue"):

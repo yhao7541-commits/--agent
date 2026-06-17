@@ -109,6 +109,40 @@ def test_operations_chat_executes_confirmed_booking():
     assert "预约已创建" in body["reply"]
 
 
+def test_operations_chat_rejects_pending_booking_without_write():
+    client = make_client()
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "我想明天下午3点约肩颈放松",
+        },
+    ).json()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_002",
+            "conversation_id": "conv_002",
+            "message": "不用了",
+            "confirmation_decision": "rejected",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"] == "confirmation_rejected"
+    assert body["confirmation_required"] is False
+    assert body["confirmation_request"] == {}
+    assert body["executed_tools"] == []
+    assert "create_booking" not in {call["tool_name"] for call in body["tool_calls"]}
+    assert "未执行" in body["reply"]
+
+
 def test_operations_chat_exposes_human_escalation():
     client = make_client()
 

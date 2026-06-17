@@ -15,6 +15,7 @@ class OperationsAgentState(TypedDict, total=False):
     rag_citations: dict[str, Any]
     tool_plan: list[dict[str, Any]]
     tool_results: list[dict[str, Any]]
+    confirmation_decision: str
     confirmed_tool_name: str
     confirmed_tool_arguments: dict[str, Any]
     confirmation_token: str
