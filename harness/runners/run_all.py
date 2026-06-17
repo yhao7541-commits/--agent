@@ -77,6 +77,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         if confirmed_turn:
             state["confirmed_tool_name"] = pending_confirmation["tool_name"]
             state["confirmed_tool_arguments"] = pending_confirmation["arguments"]
+            state["confirmation_token"] = pending_confirmation["confirmation_token"]
 
         result = run_operations_turn(state)
         result["_turn_index"] = index

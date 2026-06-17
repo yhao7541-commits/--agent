@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import ValidationError
 
+from security.guardrails import sanitize_tool_output
+
 from .base import ToolPermission, ToolResult
 from .registry import ToolRegistry
 from .schemas import ToolExecutionContext
@@ -73,7 +75,7 @@ class ToolGateway:
         result = ToolResult(
             tool_name=tool_name,
             success=True,
-            output=parsed_output.model_dump(),
+            output=sanitize_tool_output(parsed_output.model_dump()),
         )
         self._trace(context, "tool_executed", tool_name, None)
         return result

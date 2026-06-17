@@ -68,6 +68,7 @@ def test_operations_chat_executes_confirmed_booking():
             "message": "确认",
             "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
             "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
         },
     )
 

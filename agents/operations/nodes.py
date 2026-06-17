@@ -7,6 +7,11 @@ from typing import Any
 
 from memory.memory_proposals import extract_memory_proposals
 from rag.citation import build_citation_metadata
+from security.guardrails import (
+    build_confirmation_token,
+    detect_prompt_injection,
+    is_valid_confirmation_token,
+)
 from tools.gateway import ToolGateway
 from tools.registry import build_default_tool_registry
 from tools.schemas import ToolExecutionContext
@@ -70,7 +75,30 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
 
 def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     message = state.get("message", "")
-    if any(keyword in message for keyword in MEDICAL_ESCALATION_KEYWORDS):
+    if _has_unsafe_confirmed_tool_request(state):
+        intent = "escalation"
+        confidence = 1.0
+        state["escalated"] = True
+        state["policy_violation"] = {
+            "reason": "unsafe_tool_confirmation",
+            "tool_name": state.get("confirmed_tool_name"),
+        }
+        state["escalation"] = _build_escalation(
+            state,
+            reason="unsafe_tool_confirmation",
+            requested_action="manual_tool_confirmation_review",
+        )
+    elif detect_prompt_injection(message):
+        intent = "escalation"
+        confidence = 1.0
+        state["escalated"] = True
+        state["policy_violation"] = {"reason": "prompt_injection"}
+        state["escalation"] = _build_escalation(
+            state,
+            reason="prompt_injection",
+            requested_action="manual_security_review",
+        )
+    elif any(keyword in message for keyword in MEDICAL_ESCALATION_KEYWORDS):
         intent = "escalation"
         confidence = 1.0
         state["escalated"] = True
@@ -118,7 +146,15 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
 
     state["intent"] = intent
     state["confidence"] = confidence
-    return append_trace(state, "classify_intent", {"intent": intent, "confidence": confidence})
+    state = append_trace(state, "classify_intent", {"intent": intent, "confidence": confidence})
+    if state.get("policy_violation"):
+        return append_trace(
+            state,
+            "input_guardrail",
+            state["policy_violation"],
+            event_type="policy_violation",
+        )
+    return state
 
 
 def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
@@ -310,6 +346,11 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
                 "arguments": planned_tool.get("arguments", {}),
                 "summary": summary,
                 "message": _confirmation_message(result.tool_name),
+                "confirmation_token": build_confirmation_token(
+                    state.get("conversation_id", ""),
+                    result.tool_name,
+                    planned_tool.get("arguments", {}),
+                ),
             }
 
         if result.success and result.tool_name == "search_knowledge_base":
@@ -398,6 +439,18 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
         if result.get("tool_name") == tool_name and result.get("success"):
             return result
     return None
+
+
+def _has_unsafe_confirmed_tool_request(state: OperationsAgentState) -> bool:
+    tool_name = state.get("confirmed_tool_name")
+    if tool_name not in BOOKING_WRITE_TOOLS | MEMORY_WRITE_TOOLS:
+        return False
+    return not is_valid_confirmation_token(
+        state.get("conversation_id", ""),
+        tool_name,
+        state.get("confirmed_tool_arguments", {}),
+        state.get("confirmation_token"),
+    )
 
 
 def _append_rag_trace(context: ToolExecutionContext, metadata: dict[str, Any]) -> None:

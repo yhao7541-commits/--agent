@@ -16,6 +16,7 @@ class OperationsAgentState(TypedDict, total=False):
     tool_results: list[dict[str, Any]]
     confirmed_tool_name: str
     confirmed_tool_arguments: dict[str, Any]
+    confirmation_token: str
     confirmation_required: bool
     confirmation_request: dict[str, Any]
     memory_proposals: list[dict[str, Any]]

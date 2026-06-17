@@ -15,6 +15,7 @@ class OperationsChatRequest(BaseModel):
     message: str
     confirmed_tool_name: str | None = None
     confirmed_tool_arguments: dict[str, Any] = Field(default_factory=dict)
+    confirmation_token: str | None = None
 
 
 class OperationsChatResponse(BaseModel):

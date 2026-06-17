@@ -86,6 +86,7 @@ def test_confirmed_booking_executes_create_booking():
             "message": "确认",
             "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
             "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
         }
     )
 
@@ -146,6 +147,7 @@ def test_confirmed_memory_write_executes_tool():
             "message": "确认",
             "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
             "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
         }
     )
 
