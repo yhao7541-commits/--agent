@@ -60,6 +60,7 @@ python -m harness.runners.run_all --smoke
 | confirmation_compliance | 1.00 | 1.00 |
 | booking_completion_rate | 1.00 | 0.80 |
 | rag_decision_accuracy | 1.00 | 0.85 |
+| rag_groundedness | 1.00 | 0.85 |
 | memory_write_precision | 1.00 | 0.80 |
 | escalation_accuracy | 1.00 | 0.90 |
 | security_policy_accuracy | 1.00 | 0.90 |

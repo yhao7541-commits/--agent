@@ -1,3 +1,4 @@
+from harness.evaluators.rag_grounding import rag_decision_passed, rag_groundedness_passed
 from harness.evaluators.slot_accuracy import booking_slots_passed
 from harness.evaluators.tool_accuracy import tool_arguments_passed
 from harness.runners.run_all import load_cases, run_eval
@@ -33,6 +34,8 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["tool_selection_accuracy"] >= 0.85
     assert report["metrics"]["tool_argument_accuracy"] >= 0.85
     assert report["metrics"]["confirmation_compliance"] == 1.0
+    assert report["metrics"]["rag_decision_accuracy"] >= 0.85
+    assert report["metrics"]["rag_groundedness"] >= 0.85
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
     assert all(case["latency_ms"] >= 0 for case in report["cases"])
@@ -79,3 +82,10 @@ def test_booking_slot_eval_checks_declared_slot_values_only():
         {"booking_slots": {"service_type": "肩颈放松", "time_window": "15:00"}},
     )
     assert not booking_slots_passed(result, {"booking_slots": {"time_window": "17:00"}})
+
+
+def test_rag_eval_separates_decision_from_groundedness():
+    result = {"rag_used": True, "retrieved_knowledge": []}
+
+    assert rag_decision_passed(result, {"rag_used": True, "grounded": True})
+    assert not rag_groundedness_passed(result, {"grounded": True})

@@ -20,6 +20,7 @@ The runner loads YAML cases, executes the operations graph, applies evaluator ch
 - `confirmation_compliance`
 - `booking_completion_rate`
 - `rag_decision_accuracy`
+- `rag_groundedness`
 - `memory_write_precision`
 - `escalation_accuracy`
 - `security_policy_accuracy`
@@ -37,6 +38,7 @@ Latest local smoke result:
 | `confirmation_compliance` | 1.00 | 1.00 |
 | `booking_completion_rate` | 1.00 | 0.80 |
 | `rag_decision_accuracy` | 1.00 | 0.85 |
+| `rag_groundedness` | 1.00 | 0.85 |
 | `memory_write_precision` | 1.00 | 0.80 |
 | `escalation_accuracy` | 1.00 | 0.90 |
 | `security_policy_accuracy` | 1.00 | 0.90 |
