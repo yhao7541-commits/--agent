@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from memory.memory_proposals import extract_memory_proposals
+from rag.citation import build_citation_metadata
 from tools.gateway import ToolGateway
 from tools.registry import build_default_tool_registry
 from tools.schemas import ToolExecutionContext
@@ -55,6 +56,7 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
     state.setdefault("missing_slots", [])
     state.setdefault("customer_context", {})
     state.setdefault("retrieved_knowledge", [])
+    state.setdefault("rag_citations", {})
     state.setdefault("tool_plan", [])
     state.setdefault("tool_results", [])
     state.setdefault("confirmation_required", False)
@@ -313,6 +315,11 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         if result.success and result.tool_name == "search_knowledge_base":
             retrieved_knowledge = result.output.get("chunks", [])
             state["rag_used"] = True
+            state["rag_citations"] = build_citation_metadata(
+                planned_tool.get("arguments", {}).get("query", ""),
+                retrieved_knowledge,
+            )
+            _append_rag_trace(context, state["rag_citations"])
         if result.success and result.tool_name in {"create_booking", "reschedule_booking", "cancel_booking"}:
             state["confirmation_required"] = False
             state["confirmation_request"] = {}
@@ -337,7 +344,10 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     elif state.get("confirmation_required"):
         state["reply"] = _confirmation_reply(state)
     elif state.get("intent") == "consultation":
-        state["reply"] = "根据服务政策，相关问题需要以门店知识库为准；我已检索到可参考的服务说明。"
+        if state.get("rag_used") and not state.get("retrieved_knowledge"):
+            state["reply"] = "当前知识库信息不足，无法可靠回答这个问题；请由工作人员进一步确认。"
+        else:
+            state["reply"] = "根据服务政策，相关问题需要以门店知识库为准；我已检索到可参考的服务说明。"
     elif _successful_tool_result(state, "create_booking"):
         booking_result = _successful_tool_result(state, "create_booking")
         state["reply"] = f"预约已创建，预约编号：{booking_result['output']['booking_id']}。"
@@ -388,6 +398,21 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
         if result.get("tool_name") == tool_name and result.get("success"):
             return result
     return None
+
+
+def _append_rag_trace(context: ToolExecutionContext, metadata: dict[str, Any]) -> None:
+    context.trace_events.append(
+        {
+            "trace_id": context.trace_id,
+            "conversation_id": context.conversation_id,
+            "node": "search_knowledge_base",
+            "event_type": "rag_retrieval_completed",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "latency_ms": 0,
+            "metadata": metadata,
+            "error": None,
+        }
+    )
 
 
 def _build_confirmation_summary(

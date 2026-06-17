@@ -11,6 +11,7 @@ class OperationsAgentState(TypedDict, total=False):
     missing_slots: list[str]
     customer_context: dict[str, Any]
     retrieved_knowledge: list[dict[str, Any]]
+    rag_citations: dict[str, Any]
     tool_plan: list[dict[str, Any]]
     tool_results: list[dict[str, Any]]
     confirmed_tool_name: str
