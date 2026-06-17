@@ -1,3 +1,4 @@
+from harness.evaluators.slot_accuracy import booking_slots_passed
 from harness.evaluators.tool_accuracy import tool_arguments_passed
 from harness.runners.run_all import load_cases, run_eval
 
@@ -28,6 +29,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
 
     assert report["case_count"] > 0
     assert report["metrics"]["intent_accuracy"] >= 0.85
+    assert report["metrics"]["slot_precision"] >= 0.85
     assert report["metrics"]["tool_selection_accuracy"] >= 0.85
     assert report["metrics"]["tool_argument_accuracy"] >= 0.85
     assert report["metrics"]["confirmation_compliance"] == 1.0
@@ -59,3 +61,19 @@ def test_tool_argument_eval_passes_when_any_planned_call_matches():
             }
         },
     )
+
+
+def test_booking_slot_eval_checks_declared_slot_values_only():
+    result = {
+        "booking_slots": {
+            "service_type": "肩颈放松",
+            "time_window": "15:00",
+            "customer_name": "eval_user",
+        }
+    }
+
+    assert booking_slots_passed(
+        result,
+        {"booking_slots": {"service_type": "肩颈放松", "time_window": "15:00"}},
+    )
+    assert not booking_slots_passed(result, {"booking_slots": {"time_window": "17:00"}})
