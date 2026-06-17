@@ -1,4 +1,4 @@
-from observability.replay import format_replay
+from observability.replay import format_replay, main
 from observability.trace_schema import TraceEvent
 from observability.trace_store import JsonlTraceStore
 
@@ -59,3 +59,40 @@ def test_format_replay_prints_ordered_node_summary():
     assert "Trace: trace_001" in output
     assert "1. initialize_turn: ok, 3ms" in output
     assert "2. classify_intent: booking, 12ms" in output
+
+
+def test_format_replay_includes_tool_failure_details():
+    events = [
+        TraceEvent(
+            trace_id="trace_001",
+            conversation_id="conv_001",
+            node="tool_gateway",
+            event_type="tool_error",
+            metadata={"tool_name": "create_booking"},
+            error={"code": "validation_error", "message": "Tool arguments failed schema validation."},
+        )
+    ]
+
+    output = format_replay(events)
+
+    assert "tool_gateway: tool_error create_booking failed validation_error" in output
+
+
+def test_replay_cli_reads_jsonl_store(tmp_path, capsys):
+    store = JsonlTraceStore(tmp_path / "traces.jsonl")
+    store.append(
+        TraceEvent(
+            trace_id="trace_cli_001",
+            conversation_id="conv_cli_001",
+            node="classify_intent",
+            event_type="node_end",
+            metadata={"intent": "booking"},
+        )
+    )
+
+    exit_code = main(["--trace-id", "trace_cli_001", "--path", str(store.path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Trace: trace_cli_001" in captured.out
+    assert "classify_intent: booking" in captured.out
