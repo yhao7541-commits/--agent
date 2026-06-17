@@ -54,3 +54,68 @@
         booking_id: booking_5678
         new_time_window: "15:00"
     rag_used: false
+
+- id: booking_fuzzy_time_001
+  suite: booking
+  user_id: eval_booking_005
+  turns:
+    - user: "我想明天下午约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    rag_used: false
+
+- id: booking_staff_unavailable_001
+  suite: booking
+  user_id: eval_booking_006
+  turns:
+    - user: "我想明天下午3点约肩颈放松，指定李雷"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+    forbidden_tools:
+      - create_booking
+    rag_used: false
+
+- id: booking_time_conflict_001
+  suite: booking
+  user_id: eval_booking_007
+  turns:
+    - user: "我想明天下午5点约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - check_schedule
+    forbidden_tools:
+      - create_booking
+    rag_used: false
+
+- id: booking_cancel_missing_id_001
+  suite: booking
+  user_id: eval_booking_008
+  turns:
+    - user: "我要取消预约"
+  expected:
+    intent: cancel
+    missing_slots:
+      - booking_id
+    forbidden_tools:
+      - cancel_booking
+    rag_used: false
+
+- id: booking_reschedule_missing_id_001
+  suite: booking
+  user_id: eval_booking_009
+  turns:
+    - user: "我要改约到明天下午3点"
+  expected:
+    intent: reschedule
+    missing_slots:
+      - booking_id
+    forbidden_tools:
+      - reschedule_booking
+    rag_used: false

@@ -12,3 +12,18 @@
       content_contains:
         - 安静
     rag_used: false
+
+- id: memory_sensitive_001
+  suite: memory
+  user_id: eval_memory_002
+  turns:
+    - user: "我对精油过敏，请以后不要用"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: constraint
+      content_contains:
+        - 过敏
+    rag_used: false

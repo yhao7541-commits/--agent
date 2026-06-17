@@ -18,3 +18,15 @@
   expected:
     intent: greeting
     rag_used: false
+
+- id: rag_pricing_001
+  suite: rag
+  user_id: eval_rag_003
+  turns:
+    - user: "肩颈放松多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
