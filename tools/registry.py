@@ -14,6 +14,7 @@ from .escalation_tools import escalate_to_human
 from .knowledge_tools import search_knowledge_base
 from .schemas import (
     BookingOutput,
+    CancelBookingInput,
     CheckScheduleInput,
     CheckScheduleOutput,
     CreateBookingInput,
@@ -27,6 +28,7 @@ from .schemas import (
     KnowledgeSearchOutput,
     LookupCustomerProfileInput,
     LookupCustomerProfileOutput,
+    RescheduleBookingInput,
     SearchServicesInput,
     SearchServicesOutput,
 )
@@ -106,8 +108,30 @@ def build_default_tool_registry() -> ToolRegistry:
                 input_schema=CreateBookingInput,
                 output_schema=BookingOutput,
                 handler=handler,
-            )
         )
+    )
+    registry.register(
+        ToolDefinition(
+            name="reschedule_booking",
+            description="Reschedule an existing booking.",
+            permission=ToolPermission.WRITE,
+            requires_confirmation=True,
+            input_schema=RescheduleBookingInput,
+            output_schema=BookingOutput,
+            handler=reschedule_booking,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="cancel_booking",
+            description="Cancel an existing booking.",
+            permission=ToolPermission.WRITE,
+            requires_confirmation=True,
+            input_schema=CancelBookingInput,
+            output_schema=BookingOutput,
+            handler=cancel_booking,
+        )
+    )
     registry.register(
         ToolDefinition(
             name="write_customer_preference",

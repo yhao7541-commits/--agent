@@ -74,6 +74,47 @@ def test_unconfirmed_create_booking_is_rejected():
     assert result.error["code"] == "confirmation_required"
 
 
+def test_cancel_booking_requires_booking_id_schema():
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute(
+        "cancel_booking",
+        {
+            "customer_name": "user_001",
+        },
+        context,
+    )
+
+    assert result.success is False
+    assert result.error["code"] == "validation_error"
+
+
+def test_confirmed_reschedule_booking_executes_with_existing_booking_id():
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(
+        user_id="user_001",
+        conversation_id="conv_001",
+        trace_id="trace_001",
+        confirmed_tools={"reschedule_booking"},
+    )
+
+    result = gateway.execute(
+        "reschedule_booking",
+        {
+            "booking_id": "booking_5678",
+            "new_date": "2026-06-18",
+            "new_time_window": "15:00",
+            "customer_name": "user_001",
+        },
+        context,
+    )
+
+    assert result.success is True
+    assert result.output["booking_id"] == "booking_5678"
+    assert result.output["status"] == "rescheduled"
+
+
 def test_unconfirmed_customer_preference_write_is_rejected():
     gateway = ToolGateway(build_default_tool_registry())
     context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")

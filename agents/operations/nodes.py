@@ -119,7 +119,13 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="refund_dispute",
             requested_action="refund_or_complaint_review",
         )
-    elif state.get("confirmed_tool_name") in BOOKING_WRITE_TOOLS:
+    elif state.get("confirmed_tool_name") == "cancel_booking":
+        intent = "cancel"
+        confidence = 1.0
+    elif state.get("confirmed_tool_name") == "reschedule_booking":
+        intent = "reschedule"
+        confidence = 1.0
+    elif state.get("confirmed_tool_name") == "create_booking":
         intent = "booking"
         confidence = 1.0
     elif state.get("confirmed_tool_name") in MEMORY_WRITE_TOOLS:
@@ -128,6 +134,12 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
     elif state.get("booking_slots") and any(keyword in message for keyword in BOOKING_SLOT_UPDATE_KEYWORDS):
         intent = "booking"
         confidence = 0.85
+    elif "取消" in message:
+        intent = "cancel"
+        confidence = 0.9
+    elif "改约" in message:
+        intent = "reschedule"
+        confidence = 0.9
     elif any(keyword in message for keyword in BOOKING_KEYWORDS):
         intent = "booking"
         confidence = 0.9
@@ -172,7 +184,7 @@ def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
 
 
 def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
-    if state.get("intent") != "booking":
+    if state.get("intent") not in {"booking", "cancel", "reschedule"}:
         return append_trace(state, "extract_booking_slots", {"skipped": True})
     if state.get("escalated"):
         return append_trace(state, "extract_booking_slots", {"skipped": True})
@@ -187,6 +199,16 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
 
     message = state.get("message", "")
     slots: dict[str, Any] = dict(state.get("booking_slots", {}))
+    booking_id_match = re.search(r"\bbooking_[A-Za-z0-9_-]+\b", message)
+    if booking_id_match:
+        slots["booking_id"] = booking_id_match.group(0)
+
+    if state.get("intent") == "cancel":
+        slots["customer_name"] = state.get("user_id", "local_user")
+        missing = ["booking_id"] if not slots.get("booking_id") else []
+        state["booking_slots"] = slots
+        state["missing_slots"] = missing
+        return append_trace(state, "extract_booking_slots", {"slots": slots, "missing_slots": missing})
 
     if "肩颈" in message:
         slots["service_type"] = "肩颈放松"
@@ -220,11 +242,22 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         slots["preferred_staff"] = "李雷"
 
     slots["customer_name"] = state.get("user_id", "local_user")
-    missing = [
-        field
-        for field in ("service_type", "date", "time_window")
-        if not slots.get(field)
-    ]
+    if state.get("intent") == "reschedule":
+        if slots.get("date"):
+            slots["new_date"] = slots["date"]
+        if slots.get("time_window"):
+            slots["new_time_window"] = slots["time_window"]
+        missing = [
+            field
+            for field in ("booking_id", "new_date", "new_time_window")
+            if not slots.get(field)
+        ]
+    else:
+        missing = [
+            field
+            for field in ("service_type", "date", "time_window")
+            if not slots.get(field)
+        ]
 
     state["booking_slots"] = slots
     state["missing_slots"] = missing
@@ -326,6 +359,32 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
                 "permission": "write",
             }
         )
+    elif intent == "cancel" and not state.get("missing_slots"):
+        slots = state.get("booking_slots", {})
+        plan.append(
+            {
+                "tool_name": "cancel_booking",
+                "arguments": {
+                    "booking_id": slots.get("booking_id"),
+                    "customer_name": slots.get("customer_name", state.get("user_id", "local_user")),
+                },
+                "permission": "write",
+            }
+        )
+    elif intent == "reschedule" and not state.get("missing_slots"):
+        slots = state.get("booking_slots", {})
+        plan.append(
+            {
+                "tool_name": "reschedule_booking",
+                "arguments": {
+                    "booking_id": slots.get("booking_id"),
+                    "new_date": slots.get("new_date"),
+                    "new_time_window": slots.get("new_time_window"),
+                    "customer_name": slots.get("customer_name", state.get("user_id", "local_user")),
+                },
+                "permission": "write",
+            }
+        )
 
     state["tool_plan"] = plan
     return append_trace(state, "plan_tool_calls", {"tool_count": len(plan)})
@@ -409,7 +468,14 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     elif state.get("booking_issue"):
         state["reply"] = _booking_issue_reply(state)
     elif state.get("missing_slots"):
-        labels = {"service_type": "服务项目", "date": "日期", "time_window": "时间"}
+        labels = {
+            "service_type": "服务项目",
+            "date": "日期",
+            "time_window": "时间",
+            "booking_id": "预约编号或已有预约",
+            "new_date": "新的日期",
+            "new_time_window": "新的时间",
+        }
         missing = "、".join(labels.get(field, field) for field in state["missing_slots"])
         state["reply"] = f"还需要补充{missing}，我才能继续为您安排预约。"
     elif state.get("confirmation_required"):
@@ -422,6 +488,12 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     elif _successful_tool_result(state, "create_booking"):
         booking_result = _successful_tool_result(state, "create_booking")
         state["reply"] = f"预约已创建，预约编号：{booking_result['output']['booking_id']}。"
+    elif _successful_tool_result(state, "reschedule_booking"):
+        booking_result = _successful_tool_result(state, "reschedule_booking")
+        state["reply"] = f"预约已改约，预约编号：{booking_result['output']['booking_id']}。"
+    elif _successful_tool_result(state, "cancel_booking"):
+        booking_result = _successful_tool_result(state, "cancel_booking")
+        state["reply"] = f"预约已取消，预约编号：{booking_result['output']['booking_id']}。"
     elif _successful_tool_result(state, "write_customer_preference"):
         state["reply"] = "客户偏好已保存，后续服务安排会参考这条偏好。"
     elif state.get("intent") == "greeting":
@@ -551,6 +623,22 @@ def _build_confirmation_summary(
             "evidence": arguments.get("evidence", proposal.get("evidence", "")),
             "sensitivity": proposal.get("sensitivity", "normal"),
         }
+    if tool_name == "cancel_booking":
+        arguments = arguments or {}
+        return {
+            "booking_id": arguments.get("booking_id", "待确认"),
+            "action": "取消预约",
+            "customer_name": arguments.get("customer_name", state.get("user_id", "local_user")),
+        }
+    if tool_name == "reschedule_booking":
+        arguments = arguments or {}
+        return {
+            "booking_id": arguments.get("booking_id", "待确认"),
+            "action": "改约",
+            "new_date": arguments.get("new_date", "待确认"),
+            "new_time": arguments.get("new_time_window", "待确认"),
+            "customer_name": arguments.get("customer_name", state.get("user_id", "local_user")),
+        }
 
     slots = state.get("booking_slots", {})
     staff_name = slots.get("preferred_staff") or "待确认员工"
@@ -576,6 +664,10 @@ def _build_confirmation_summary(
 def _confirmation_message(tool_name: str) -> str:
     if tool_name == "write_customer_preference":
         return "请确认是否保存这条客户偏好。"
+    if tool_name == "cancel_booking":
+        return "请确认是否取消这次预约。"
+    if tool_name == "reschedule_booking":
+        return "请确认是否改约这次预约。"
     return "请确认是否创建这次预约。"
 
 
@@ -590,6 +682,21 @@ def _confirmation_reply(state: OperationsAgentState) -> str:
             f"依据：{summary.get('evidence', '')}\n"
             f"敏感级别：{summary.get('sensitivity', 'normal')}\n"
             "确认后我再写入客户记忆。"
+        )
+    if request.get("tool_name") == "cancel_booking":
+        return (
+            "请确认是否取消这次预约：\n"
+            f"预约编号：{summary.get('booking_id', '待确认')}\n"
+            f"客户：{summary.get('customer_name', '待确认')}\n"
+            "确认后我再取消预约。"
+        )
+    if request.get("tool_name") == "reschedule_booking":
+        return (
+            "请确认是否改约这次预约：\n"
+            f"预约编号：{summary.get('booking_id', '待确认')}\n"
+            f"新日期：{summary.get('new_date', '待确认')}\n"
+            f"新时间：{summary.get('new_time', '待确认')}\n"
+            "确认后我再改约。"
         )
 
     return (

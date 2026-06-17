@@ -66,10 +66,10 @@ def create_booking(arguments: BaseModel, context) -> dict:
 
 
 def reschedule_booking(arguments: BaseModel, context) -> dict:
-    booking_id = f"booking_{context.trace_id[:8]}"
+    booking_id = getattr(arguments, "booking_id", f"booking_{context.trace_id[:8]}")
     return {"booking_id": booking_id, "status": "rescheduled"}
 
 
 def cancel_booking(arguments: BaseModel, context) -> dict:
-    booking_id = f"booking_{context.trace_id[:8]}"
+    booking_id = getattr(arguments, "booking_id", f"booking_{context.trace_id[:8]}")
     return {"booking_id": booking_id, "status": "cancelled"}

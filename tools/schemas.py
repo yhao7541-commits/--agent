@@ -51,6 +51,18 @@ class CreateBookingInput(BaseModel):
     special_requests: str | None = None
 
 
+class RescheduleBookingInput(BaseModel):
+    booking_id: str
+    new_date: str
+    new_time_window: str
+    customer_name: str
+
+
+class CancelBookingInput(BaseModel):
+    booking_id: str
+    customer_name: str
+
+
 class BookingOutput(BaseModel):
     booking_id: str
     status: str

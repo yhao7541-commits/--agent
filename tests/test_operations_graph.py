@@ -146,6 +146,78 @@ def test_schedule_conflict_suggests_nearby_times_without_booking_confirmation():
     assert "可选" in result["reply"] or "附近" in result["reply"]
 
 
+def test_cancel_booking_without_booking_id_asks_for_existing_booking():
+    result = run_operations_turn(
+        {
+            "user_id": "user_014",
+            "conversation_id": "conv_014",
+            "message": "我要取消预约",
+        }
+    )
+
+    assert result["intent"] == "cancel"
+    assert "booking_id" in result["missing_slots"]
+    assert result["confirmation_required"] is False
+    assert all(plan["tool_name"] != "cancel_booking" for plan in result["tool_plan"])
+    assert "预约编号" in result["reply"] or "已有预约" in result["reply"]
+
+
+def test_cancel_booking_with_booking_id_requires_confirmation():
+    result = run_operations_turn(
+        {
+            "user_id": "user_015",
+            "conversation_id": "conv_015",
+            "message": "取消预约 booking_1234",
+        }
+    )
+
+    assert result["intent"] == "cancel"
+    assert result["missing_slots"] == []
+    assert result["confirmation_required"] is True
+    assert result["confirmation_request"]["tool_name"] == "cancel_booking"
+    assert result["confirmation_request"]["arguments"]["booking_id"] == "booking_1234"
+    assert not any(
+        tool_result.get("tool_name") == "cancel_booking" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+
+
+def test_reschedule_without_existing_booking_id_asks_for_old_booking():
+    result = run_operations_turn(
+        {
+            "user_id": "user_016",
+            "conversation_id": "conv_016",
+            "message": "我要改约到明天下午3点",
+        }
+    )
+
+    assert result["intent"] == "reschedule"
+    assert "booking_id" in result["missing_slots"]
+    assert result["confirmation_required"] is False
+    assert all(plan["tool_name"] != "reschedule_booking" for plan in result["tool_plan"])
+
+
+def test_reschedule_with_booking_id_and_new_time_requires_confirmation():
+    result = run_operations_turn(
+        {
+            "user_id": "user_017",
+            "conversation_id": "conv_017",
+            "message": "把 booking_5678 改约到明天下午3点",
+        }
+    )
+
+    assert result["intent"] == "reschedule"
+    assert result["missing_slots"] == []
+    assert result["confirmation_required"] is True
+    assert result["confirmation_request"]["tool_name"] == "reschedule_booking"
+    assert result["confirmation_request"]["arguments"]["booking_id"] == "booking_5678"
+    assert result["confirmation_request"]["arguments"]["new_time_window"] == "15:00"
+    assert not any(
+        tool_result.get("tool_name") == "reschedule_booking" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+
+
 def test_confirmed_booking_executes_create_booking():
     pending = run_operations_turn(
         {
