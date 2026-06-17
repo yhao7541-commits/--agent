@@ -22,6 +22,55 @@ User -> LangGraph Runtime -> Tool Gateway -> Booking/Knowledge/Memory Tools -> T
 
 这不是通用聊天机器人。Agent 必须在明确业务约束下完成工作：未确认不得创建预约，政策回答必须基于知识来源，客户记忆只能在合适时写入，不确定或敏感场景必须升级人工。
 
+## Operations Workflows
+
+### Tool governance
+
+所有 operations runtime 中的业务动作都通过 `ToolGateway` 执行。工具声明 permission、Pydantic 输入/输出 schema 和确认策略；`create_booking`、`reschedule_booking`、`cancel_booking`、`write_customer_preference` 等写入或敏感工具在用户确认前不会执行。
+
+### Memory lifecycle
+
+客户长期记忆先生成 `MemoryProposal`，记录 type、content、evidence、confidence、sensitivity 和 confirmation policy。明确偏好可以生成 proposal，模糊表达会被忽略，过敏/隐私约束等敏感记忆需要确认，重复偏好会更新，冲突偏好会返回 conflict result。
+
+### RAG grounding
+
+咨询和政策类问题会走知识检索路径。每次 RAG 检索都会在 trace metadata 中保存 query、source、chunk_id、score 和 text preview，用户回复可以自然表达，但审计链路保留 citations。
+
+### Trace replay
+
+每轮 operations chat 都生成 node-level 和 tool-level trace events。`observability/trace_store.py` 提供 JSONL store，`observability/replay.py` 可以按顺序输出节点摘要，用于复现工具调用、确认拦截、RAG 检索和人工升级。
+
+## Evaluation Results
+
+当前 eval harness 是 deterministic smoke 版本，不依赖付费模型调用。运行：
+
+```bash
+python -m harness.runners.run_all --smoke
+```
+
+最新本地结果：
+
+| Metric | Result | Threshold |
+| --- | ---: | ---: |
+| intent_accuracy | 1.00 | 0.85 |
+| tool_selection_accuracy | 1.00 | 0.85 |
+| confirmation_compliance | 1.00 | 1.00 |
+| booking_completion_rate | 1.00 | 0.80 |
+| rag_decision_accuracy | 1.00 | 0.85 |
+| memory_write_precision | 1.00 | 0.80 |
+| escalation_accuracy | 1.00 | 0.90 |
+
+数据集目前覆盖 9 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
+
+## Engineering Docs
+
+- [Architecture](docs/architecture.md)
+- [Tool governance](docs/tool-governance.md)
+- [Memory lifecycle](docs/memory-lifecycle.md)
+- [Evaluation](docs/evaluation.md)
+- [Demo script](docs/demo-script.md)
+- [Security policy](docs/security-policy.md)
+
 ## 核心能力
 
 - **智能任务分类**：自动识别用户是在咨询服务、预约技师、查询无关问题，还是触发用户行为分析，并将请求路由到对应 Agent。
@@ -216,7 +265,11 @@ Smart appointment AI agent/
 │   ├── templates/                   # HTML 模板
 │   └── static/                      # 静态资源
 ├── tools/                           # Tool Governance Gateway 与受控工具定义
+├── memory/                          # Customer Memory Lifecycle
+├── rag/                             # RAG adapters 与 citation metadata
 ├── observability/                   # Trace schema、JSONL store 与 replay CLI
+├── harness/                         # Deterministic eval datasets、evaluators 与 runner
+├── scripts/                         # 本地工程脚本
 ├── mcp-server/                      # MCP 外部服务扩展
 ├── data/                            # 数据库与缓存目录
 ├── tests/                           # 测试用例
@@ -316,6 +369,16 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8001 --reload
 - API 文档：http://127.0.0.1:8000/docs
 - ReDoc 文档：http://127.0.0.1:8000/redoc
 
+## Docker setup
+
+本地容器启动：
+
+```bash
+docker compose up --build
+```
+
+容器默认读取 `.env.example`，监听 `http://127.0.0.1:8000`，并把运行数据写入 Docker volume `wellness-data`。
+
 ## 测试
 
 运行全部测试：
@@ -329,6 +392,20 @@ pytest
 ```bash
 pytest tests/test_task_classification_agent.py
 ```
+
+运行 lint 和 eval smoke：
+
+```bash
+python -m ruff check .
+python -m harness.runners.run_all --smoke
+```
+
+## Known limitations
+
+- 当前 eval dataset 是 smoke 规模，还不是最终 150+ case 回归集。
+- Memory store 是最小可测实现，尚未接入完整用户生命周期审计 UI。
+- RAG adapter 是本地 deterministic grounding 层，MCP-backed RAG adapter 仍是扩展点。
+- 新 operations endpoint 已可用，但旧 Web/chat 流程尚未切换到新 runtime。
 
 ## 主要页面
 
