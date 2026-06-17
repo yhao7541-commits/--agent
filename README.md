@@ -53,14 +53,18 @@ python -m harness.runners.run_all --smoke
 | Metric | Result | Threshold |
 | --- | ---: | ---: |
 | intent_accuracy | 1.00 | 0.85 |
+| slot_recall | 1.00 | n/a |
+| slot_precision | 1.00 | 0.85 |
 | tool_selection_accuracy | 1.00 | 0.85 |
+| tool_argument_accuracy | 1.00 | 0.85 |
 | confirmation_compliance | 1.00 | 1.00 |
 | booking_completion_rate | 1.00 | 0.80 |
 | rag_decision_accuracy | 1.00 | 0.85 |
 | memory_write_precision | 1.00 | 0.80 |
 | escalation_accuracy | 1.00 | 0.90 |
+| security_policy_accuracy | 1.00 | 0.90 |
 
-数据集目前覆盖 9 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
+数据集目前覆盖 21 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
 
 ## Engineering Docs
 
