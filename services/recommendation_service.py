@@ -7,15 +7,17 @@
 3. 提供手动触发推荐功能
 """
 
-import asyncio
-import schedule
 import time
 import threading
-from datetime import datetime
 from typing import List, Dict, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+try:
+    import schedule
+except ImportError:
+    schedule = None
 
 class RecommendationService:
     """推荐调度服务类"""
@@ -60,6 +62,9 @@ class RecommendationService:
         if self.is_running:
             logger.warning("调度器已经在运行中")
             return False
+        if schedule is None:
+            logger.warning("未安装 schedule，推荐调度器不会启动")
+            return False
         
         try:
             # 设置定时任务
@@ -93,7 +98,8 @@ class RecommendationService:
         """停止定时任务调度器"""
         try:
             self.is_running = False
-            schedule.clear()
+            if schedule is not None:
+                schedule.clear()
             logger.info("推荐调度器已停止")
             return True
         except Exception as e:
@@ -110,8 +116,8 @@ class RecommendationService:
         return {
             "is_running": self.is_running,
             "thread_alive": self.scheduler_thread.is_alive() if self.scheduler_thread else False,
-            "next_job": str(schedule.next_run()) if schedule.jobs else None,
-            "total_jobs": len(schedule.jobs)
+            "next_job": str(schedule.next_run()) if schedule is not None and schedule.jobs else None,
+            "total_jobs": len(schedule.jobs) if schedule is not None else 0,
         }
 
 # 测试用的手动运行函数

@@ -51,6 +51,9 @@ class BehaviorRecorder:
             int: 行为记录ID，失败时返回None
         """
         try:
+            if isinstance(action_type, dict) and action_data is None:
+                return self._record_memory_behavior(action_type)
+
             # 如果有behavior_service则使用它，否则降级到数据库直接访问
             if self.behavior_service:
                 success = self.behavior_service.record_behavior(
@@ -74,7 +77,27 @@ class BehaviorRecorder:
             
         except Exception as e:
             self.logger.error(f"记录用户行为失败: {str(e)}")
+            if isinstance(action_type, dict):
+                return self._record_memory_behavior(action_type)
             return None
+
+    def _record_memory_behavior(self, behavior_data: Dict[str, Any]) -> int:
+        store = getattr(self, "memory_store", None)
+        if store is None:
+            self.memory_store = []
+            store = self.memory_store
+
+        record = dict(behavior_data)
+        record.setdefault("user_id", "default_user")
+        record.setdefault("action", record.get("action_type", "behavior"))
+        record.setdefault("timestamp", datetime.now())
+        store.append(record)
+        return len(store)
+
+    def get_recent_behavior(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        store = getattr(self, "memory_store", [])
+        records = [record for record in store if record.get("user_id") == user_id]
+        return records[-limit:][::-1]
     
     def record_appointment_behavior(self, appointment_data: Dict[str, Any], 
                                   technician_id: int = None, session_id: str = None) -> Optional[int]:

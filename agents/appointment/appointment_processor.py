@@ -5,7 +5,6 @@
 """
 
 import os
-import json
 import asyncio
 import aiohttp
 from typing import Dict, Any, AsyncGenerator
@@ -13,9 +12,14 @@ from .input_parser import InputParser
 from .technician_finder import TechnicianFinder
 from .message_builder import MessageBuilder
 from .appointment_database import AppointmentDatabase
-from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain.tools import BaseTool
 from langchain_core.prompts import ChatPromptTemplate
+
+try:
+    from langchain.agents import AgentExecutor, create_openai_tools_agent
+except ImportError:
+    AgentExecutor = None
+    create_openai_tools_agent = None
 
 
 class WeatherMCPTool(BaseTool):
@@ -57,8 +61,8 @@ class WeatherMCPTool(BaseTool):
                         return f"北京当前天气：{description}，气温{temp}°C（体感{feels_like}°C），湿度{humidity}%，风速{wind_speed}m/s"
                     else:
                         return "北京今天天气晴朗，温度适宜，建议您出行注意防晒"
-        except Exception as e:
-            return f"北京今天天气宜人，温度适中，适合出行"
+        except Exception:
+            return "北京今天天气宜人，温度适中，适合出行"
     
     def _run(self, city: str = "Beijing") -> str:
         """同步版本 - 不推荐使用"""
@@ -81,7 +85,7 @@ class AppointmentProcessor:
         self.llm = llm
         
         # 初始化天气工具和 agent
-        if self.llm:
+        if self.llm and AgentExecutor and create_openai_tools_agent:
             self.weather_tool = WeatherMCPTool()
             self.tools = [self.weather_tool]
             
@@ -212,7 +216,7 @@ class AppointmentProcessor:
         # 检查是否在等待用户确认推荐技师
         if appointment_history.get('awaiting_confirmation'):
             # 用户回应不明确，重新询问
-            yield f"[REPLY][预约机器人]\n机器人：请您明确回复\"是\"或\"不\"，我好为您安排预约。\n"
+            yield "[REPLY][预约机器人]\n机器人：请您明确回复\"是\"或\"不\"，我好为您安排预约。\n"
             return
         
         # 收集思考过程
@@ -285,8 +289,11 @@ class AppointmentProcessor:
         else:
             return self.message_builder.create_save_failure_message()
     
-    async def handle_incomplete_info(self, data: Dict[str, Any], appointment_history: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    async def handle_incomplete_info(self, data: Dict[str, Any], appointment_history: Dict[str, Any] = None) -> AsyncGenerator[str, None]:
         """处理信息不完整的情况"""
+        if appointment_history is None:
+            appointment_history = data
+
         # 确定缺失的信息
         missing = []
         technician_name = appointment_history.get("technician_name")

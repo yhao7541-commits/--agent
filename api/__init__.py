@@ -18,6 +18,7 @@ from .appointment import router as appointment_router
 from .consultation import router as consultation_router
 from .task import router as task_router
 from .knowledge import router as knowledge_router
+from .operations import router as operations_router
 from .technician import router as technician_router
 from .user_behavior_analysis import router as user_behavior_analysis_router
 from .user_behavior_analysis import router_underscore as user_behavior_analysis_underscore_router
@@ -27,6 +28,7 @@ api_routers = [
     appointment_router,
     consultation_router,
     task_router,
+    operations_router,
     knowledge_router,
     technician_router,
     user_behavior_analysis_router,

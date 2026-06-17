@@ -7,12 +7,12 @@ FastAPI应用程序
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from services.knowledge_service import KnowledgeService
 from services.technician_service import TechnicianService
 from services.recommendation_service import RecommendationService
 from typing import List, Optional
 import logging
-import asyncio
 
 # 导入路由
 from api import api_routers
@@ -22,9 +22,6 @@ from web import router as web_router
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Pydantic模型
-from pydantic import BaseModel
 
 class KnowledgeRequest(BaseModel):
     content: str

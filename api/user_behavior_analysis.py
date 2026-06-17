@@ -2,7 +2,7 @@
 用户行为分析API - 简化版本
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from typing import Optional
 from pydantic import BaseModel
 

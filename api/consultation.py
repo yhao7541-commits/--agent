@@ -6,7 +6,6 @@
 from fastapi import APIRouter, HTTPException
 from .core.response_models import (
     ConsultationRequest,
-    ConsultationResponse,
     DataResponse
 )
 

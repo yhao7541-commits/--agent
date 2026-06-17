@@ -1,10 +1,13 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
+
+
+def utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class Technician(Base):
     __tablename__ = 'technicians'
@@ -31,8 +34,8 @@ class KnowledgeDocument(Base):
     category = Column(String, nullable=False)
     keywords = Column(JSON, nullable=True)  # 存储关键词列表
     embedding = Column(JSON, nullable=True)  # 存储嵌入向量
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
     is_active = Column(Integer, default=1)  # 软删除标记
 
 class UserBehavior(Base):
@@ -43,7 +46,7 @@ class UserBehavior(Base):
     action_data = Column(JSON, nullable=True)  # 存储行为相关的详细数据
     technician_id = Column(Integer, ForeignKey('technicians.id'), nullable=True)
     session_id = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     technician = relationship("Technician")
 
 class UserPreference(Base):
@@ -53,7 +56,7 @@ class UserPreference(Base):
     preference_type = Column(String, nullable=False)  # 'technician', 'time', 'service', 'duration'
     preference_value = Column(String, nullable=False)
     confidence_score = Column(Integer, default=1)  # 偏好的置信度（出现次数）
-    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_updated = Column(DateTime, default=utc_now, onupdate=utc_now)
 
 class UserRecommendation(Base):
     __tablename__ = 'user_recommendations'
@@ -63,6 +66,6 @@ class UserRecommendation(Base):
     content = Column(Text, nullable=False)
     technician_id = Column(Integer, ForeignKey('technicians.id'), nullable=True)
     is_sent = Column(Integer, default=0)  # 是否已发送
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     sent_at = Column(DateTime, nullable=True)
     technician = relationship("Technician")

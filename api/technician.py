@@ -5,8 +5,7 @@
 """
 
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
-from datetime import datetime
+from typing import List
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/technicians", tags=["技师管理"])

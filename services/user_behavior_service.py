@@ -8,7 +8,7 @@
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from db.db_router import DatabaseRouter
 import logging
 
@@ -116,7 +116,7 @@ class UserBehaviorService:
                 try:
                     date = datetime.fromisoformat(behavior['created_at'].replace('Z', '+00:00'))
                     dates.append(date)
-                except:
+                except (TypeError, ValueError):
                     continue
         
         if len(dates) < 2:
@@ -165,7 +165,7 @@ class UserBehaviorService:
                     start_time = datetime.fromisoformat(action_data['start_time'])
                     hours.append(start_time.hour)
                     weekdays.append(start_time.weekday())
-                except:
+                except (TypeError, ValueError):
                     continue
         
         if not hours:

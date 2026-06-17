@@ -12,9 +12,8 @@
 3. 提供清晰的分类结果和置信度
 """
 
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.language_models.chat_models import BaseChatModel
-from typing import Dict, Any
 
 
 class TaskClassifier:

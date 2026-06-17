@@ -109,18 +109,6 @@ class TechnicianService:
         """根据姓名获取技师信息"""
         return self.db.technicians.get_technician_by_name(name)
 
-    def get_technician_by_id(self, technician_id: int) -> Dict[str, Any]:
-        """根据ID获取技师信息"""
-        return self.db.technicians.get_technician_by_id(technician_id)
-
-    def get_technician_schedules(self, technician_id: int, date) -> List[Dict[str, Any]]:
-        """获取技师指定日期的排班信息"""
-        return self.db.technicians.get_technician_schedules(technician_id, date)
-
-    def is_technician_available(self, technician_id: int, start_time, end_time) -> bool:
-        """检查技师在指定时间段是否可用"""
-        return self.db.technicians.is_technician_available(technician_id, start_time, end_time)
-
     def add_technician(self, name: str, gender: str = None, strength: str = None) -> int:
         """添加新技师"""
         return self.db.technicians.add_technician(name, gender, strength)
