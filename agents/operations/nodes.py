@@ -127,6 +127,13 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     if time_match:
         slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
 
+    duration_match = re.search(r"(\d+)\s*分钟", message)
+    if duration_match:
+        slots["duration"] = f"{duration_match.group(1)}分钟"
+
+    if "安静" in message:
+        slots["special_requests"] = "安静一点的房间"
+
     slots["customer_name"] = state.get("user_id", "local_user")
     missing = [
         field
@@ -162,6 +169,25 @@ def plan_tool_calls(state: OperationsAgentState) -> OperationsAgentState:
         )
     elif intent == "booking" and not state.get("missing_slots"):
         slots = state.get("booking_slots", {})
+        plan.append(
+            {
+                "tool_name": "lookup_customer_profile",
+                "arguments": {"user_id": state.get("user_id", "local_user")},
+                "permission": "read",
+            }
+        )
+        plan.append(
+            {
+                "tool_name": "find_available_staff",
+                "arguments": {
+                    "service_type": slots.get("service_type"),
+                    "date": slots.get("date"),
+                    "time_window": slots.get("time_window"),
+                    "preferred_staff": slots.get("preferred_staff"),
+                },
+                "permission": "read",
+            }
+        )
         plan.append(
             {
                 "tool_name": "check_schedule",
@@ -207,10 +233,12 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
         results.append(result_data)
 
         if result.confirmation_required:
+            summary = _build_confirmation_summary(state, results)
             state["confirmation_required"] = True
             state["confirmation_request"] = {
                 "tool_name": result.tool_name,
                 "arguments": planned_tool.get("arguments", {}),
+                "summary": summary,
                 "message": "请确认是否创建这次预约。",
             }
 
@@ -235,12 +263,17 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
         missing = "、".join(labels.get(field, field) for field in state["missing_slots"])
         state["reply"] = f"还需要补充{missing}，我才能继续为您安排预约。"
     elif state.get("confirmation_required"):
-        slots = state.get("booking_slots", {})
+        summary = state.get("confirmation_request", {}).get("summary", {})
         state["reply"] = (
             "请确认是否创建这次预约：\n"
-            f"服务：{slots.get('service_type', '待确认')}\n"
-            f"日期：{slots.get('date', '待确认')}\n"
-            f"时间：{slots.get('time_window', '待确认')}\n"
+            f"服务：{summary.get('service', '待确认')}\n"
+            f"员工：{summary.get('staff', '待确认')}\n"
+            f"日期：{summary.get('date', '待确认')}\n"
+            f"时间：{summary.get('time', '待确认')}\n"
+            f"时长：{summary.get('duration', '待确认')}\n"
+            f"价格：{summary.get('price', '门店价目表为准')}\n"
+            f"特殊需求：{summary.get('special_requests', '无')}\n"
+            f"取消政策：{summary.get('cancellation_policy', '请提前至少2小时通知。')}\n"
             "确认后我再创建预约。"
         )
     elif state.get("intent") == "consultation":
@@ -293,3 +326,28 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
         if result.get("tool_name") == tool_name and result.get("success"):
             return result
     return None
+
+
+def _build_confirmation_summary(
+    state: OperationsAgentState,
+    tool_results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    slots = state.get("booking_slots", {})
+    staff_name = slots.get("preferred_staff") or "待确认员工"
+    for result in tool_results:
+        if result.get("tool_name") == "find_available_staff" and result.get("success"):
+            staff = result.get("output", {}).get("staff", [])
+            if staff:
+                staff_name = staff[0].get("name", staff_name)
+                break
+
+    return {
+        "service": slots.get("service_type", "待确认"),
+        "staff": staff_name,
+        "date": slots.get("date", "待确认"),
+        "time": slots.get("time_window", "待确认"),
+        "duration": slots.get("duration", "待确认"),
+        "price": "门店价目表为准",
+        "special_requests": slots.get("special_requests", "无"),
+        "cancellation_policy": "如需取消或更改预约，请提前至少2小时通知。",
+    }

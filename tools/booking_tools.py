@@ -29,6 +29,21 @@ def check_schedule(arguments: BaseModel, context) -> dict:
     }
 
 
+def find_available_staff(arguments: BaseModel, context) -> dict:
+    preferred_staff = getattr(arguments, "preferred_staff", None)
+    staff_name = preferred_staff or "张伟"
+    return {
+        "staff": [
+            {
+                "id": "staff_001",
+                "name": staff_name,
+                "available": True,
+                "specialties": [getattr(arguments, "service_type", "wellness service")],
+            }
+        ]
+    }
+
+
 def create_booking(arguments: BaseModel, context) -> dict:
     booking_id = f"booking_{context.trace_id[:8]}"
     return {"booking_id": booking_id, "status": "confirmed"}

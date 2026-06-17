@@ -30,11 +30,23 @@ class CheckScheduleOutput(BaseModel):
     alternatives: list[str] = Field(default_factory=list)
 
 
+class FindAvailableStaffInput(BaseModel):
+    service_type: str
+    date: str
+    time_window: str
+    preferred_staff: str | None = None
+
+
+class FindAvailableStaffOutput(BaseModel):
+    staff: list[dict[str, Any]]
+
+
 class CreateBookingInput(BaseModel):
     service_type: str
     date: str
     time_window: str
     customer_name: str
+    duration: str | None = None
     preferred_staff: str | None = None
     special_requests: str | None = None
 
@@ -63,6 +75,15 @@ class CustomerPreferenceInput(BaseModel):
 class CustomerPreferenceOutput(BaseModel):
     memory_id: str
     status: str
+
+
+class LookupCustomerProfileInput(BaseModel):
+    user_id: str
+
+
+class LookupCustomerProfileOutput(BaseModel):
+    user_id: str
+    known_preferences: list[str] = Field(default_factory=list)
 
 
 class HumanEscalationInput(BaseModel):

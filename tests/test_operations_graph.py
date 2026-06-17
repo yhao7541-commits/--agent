@@ -44,6 +44,32 @@ def test_complete_booking_requires_confirmation_before_create_booking():
     )
 
 
+def test_complete_booking_confirmation_contract_has_business_summary():
+    result = run_operations_turn(
+        {
+            "user_id": "user_004",
+            "conversation_id": "conv_004",
+            "message": "我想明天下午3点约肩颈放松60分钟，需要安静一点的房间",
+        }
+    )
+
+    request = result["confirmation_request"]
+    summary = request["summary"]
+
+    assert request["tool_name"] == "create_booking"
+    assert summary["service"] == "肩颈放松"
+    assert summary["staff"] != ""
+    assert summary["date"] == request["arguments"]["date"]
+    assert summary["time"] == "15:00"
+    assert summary["duration"] == "60分钟"
+    assert summary["price"] != ""
+    assert "安静" in summary["special_requests"]
+    assert "取消" in summary["cancellation_policy"]
+
+    for label in ("服务：", "员工：", "日期：", "时间：", "时长：", "价格：", "特殊需求：", "取消政策："):
+        assert label in result["reply"]
+
+
 def test_confirmed_booking_executes_create_booking():
     pending = run_operations_turn(
         {

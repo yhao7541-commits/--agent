@@ -5,10 +5,11 @@ from .booking_tools import (
     cancel_booking,
     check_schedule,
     create_booking,
+    find_available_staff,
     reschedule_booking,
     search_services,
 )
-from .customer_tools import write_customer_preference
+from .customer_tools import lookup_customer_profile, write_customer_preference
 from .escalation_tools import escalate_to_human
 from .knowledge_tools import search_knowledge_base
 from .schemas import (
@@ -18,10 +19,14 @@ from .schemas import (
     CreateBookingInput,
     CustomerPreferenceInput,
     CustomerPreferenceOutput,
+    FindAvailableStaffInput,
+    FindAvailableStaffOutput,
     HumanEscalationInput,
     HumanEscalationOutput,
     KnowledgeSearchInput,
     KnowledgeSearchOutput,
+    LookupCustomerProfileInput,
+    LookupCustomerProfileOutput,
     SearchServicesInput,
     SearchServicesOutput,
 )
@@ -63,6 +68,28 @@ def build_default_tool_registry() -> ToolRegistry:
             input_schema=CheckScheduleInput,
             output_schema=CheckScheduleOutput,
             handler=check_schedule,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="find_available_staff",
+            description="Find available staff for a service and time.",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=FindAvailableStaffInput,
+            output_schema=FindAvailableStaffOutput,
+            handler=find_available_staff,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="lookup_customer_profile",
+            description="Load customer context and known preferences.",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=LookupCustomerProfileInput,
+            output_schema=LookupCustomerProfileOutput,
+            handler=lookup_customer_profile,
         )
     )
     for name, handler, status_description in (

@@ -84,3 +84,27 @@ def test_read_tool_executes_without_confirmation_and_traces():
     assert result.output["services"]
     assert context.trace_events[-1]["event_type"] == "tool_executed"
     assert context.trace_events[-1]["metadata"]["tool_name"] == "search_services"
+
+
+def test_default_registry_contains_staff_and_customer_read_tools():
+    registry = build_default_tool_registry()
+
+    assert registry.get("find_available_staff") is not None
+    assert registry.get("lookup_customer_profile") is not None
+
+
+def test_staff_and_customer_read_tools_execute_without_confirmation():
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    staff_result = gateway.execute(
+        "find_available_staff",
+        {"service_type": "肩颈放松", "date": "2026-06-18", "time_window": "15:00"},
+        context,
+    )
+    profile_result = gateway.execute("lookup_customer_profile", {"user_id": "user_001"}, context)
+
+    assert staff_result.success is True
+    assert staff_result.output["staff"]
+    assert profile_result.success is True
+    assert profile_result.output["user_id"] == "user_001"
