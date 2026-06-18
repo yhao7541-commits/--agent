@@ -276,6 +276,14 @@ def test_default_registry_contains_staff_and_customer_read_tools():
     assert registry.get("lookup_customer_profile") is not None
 
 
+def test_default_registry_uses_specific_booking_write_schemas():
+    registry = build_default_tool_registry()
+
+    assert registry.get("create_booking").input_schema.__name__ == "CreateBookingInput"
+    assert registry.get("reschedule_booking").input_schema.__name__ == "RescheduleBookingInput"
+    assert registry.get("cancel_booking").input_schema.__name__ == "CancelBookingInput"
+
+
 def test_staff_and_customer_read_tools_execute_without_confirmation():
     gateway = ToolGateway(build_default_tool_registry())
     context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")

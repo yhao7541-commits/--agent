@@ -96,20 +96,15 @@ def build_default_tool_registry() -> ToolRegistry:
             handler=lookup_customer_profile,
         )
     )
-    for name, handler, status_description in (
-        ("create_booking", create_booking, "Create a confirmed booking."),
-        ("reschedule_booking", reschedule_booking, "Reschedule an existing booking."),
-        ("cancel_booking", cancel_booking, "Cancel an existing booking."),
-    ):
-        registry.register(
-            ToolDefinition(
-                name=name,
-                description=status_description,
-                permission=ToolPermission.WRITE,
-                requires_confirmation=True,
-                input_schema=CreateBookingInput,
-                output_schema=BookingOutput,
-                handler=handler,
+    registry.register(
+        ToolDefinition(
+            name="create_booking",
+            description="Create a confirmed booking.",
+            permission=ToolPermission.WRITE,
+            requires_confirmation=True,
+            input_schema=CreateBookingInput,
+            output_schema=BookingOutput,
+            handler=create_booking,
         )
     )
     registry.register(
