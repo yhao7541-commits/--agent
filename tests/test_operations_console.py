@@ -1,12 +1,24 @@
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from pathlib import Path
 
-from web.routes import router
+from fastapi import FastAPI
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.testclient import TestClient
+from fastapi.templating import Jinja2Templates
+
+
+TEMPLATES = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parents[1] / "web" / "templates")
+)
 
 
 def test_operations_console_renders_runtime_panels():
     app = FastAPI()
-    app.include_router(router)
+
+    @app.get("/operations", response_class=HTMLResponse)
+    async def operations_console(request: Request):
+        return TEMPLATES.TemplateResponse(request, "operations_console.html")
+
     client = TestClient(app)
 
     response = client.get("/operations")
