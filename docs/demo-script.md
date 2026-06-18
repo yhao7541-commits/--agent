@@ -1,6 +1,6 @@
 # Demo Script
 
-Use `/api/operations/chat` for these demos.
+Use `/api/operations/chat` or the `/operations` console for these demos.
 
 ## 1. Incomplete Booking
 

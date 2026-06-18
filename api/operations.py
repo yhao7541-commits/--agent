@@ -36,6 +36,7 @@ class OperationsChatResponse(BaseModel):
     executed_tools: list[dict[str, Any]] = Field(default_factory=list)
     memory_proposals: list[dict[str, Any]] = Field(default_factory=list)
     rag_used: bool = False
+    rag_citations: dict[str, Any] = Field(default_factory=dict)
     escalated: bool = False
 
 
@@ -55,6 +56,7 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         executed_tools=result.get("tool_results", []),
         memory_proposals=result.get("memory_proposals", []),
         rag_used=result.get("rag_used", False),
+        rag_citations=result.get("rag_citations", {}),
         escalated=result.get("escalated", False),
     )
 

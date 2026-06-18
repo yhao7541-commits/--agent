@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operations Console</title>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --surface: #ffffff;
+            --line: #d7dde6;
+            --text: #17202e;
+            --muted: #5f6b7a;
+            --primary: #1f6feb;
+            --primary-dark: #174ea6;
+            --good: #0f7b45;
+            --warn: #9a6700;
+            --bad: #b42318;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .shell {
+            width: min(1440px, 100%);
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .status,
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .status {
+            min-width: 220px;
+            padding: 10px 12px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+            gap: 16px;
+            align-items: start;
+        }
+
+        .panel {
+            padding: 16px;
+        }
+
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 16px;
+            line-height: 1.25;
+            letter-spacing: 0;
+        }
+
+        label {
+            display: block;
+            margin: 12px 0 6px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font: inherit;
+            color: var(--text);
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 112px;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 14px;
+            border: 0;
+            border-radius: 8px;
+            padding: 11px 14px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--primary-dark);
+        }
+
+        button.secondary {
+            background: #eef2f8;
+            color: var(--text);
+            border: 1px solid var(--line);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .reply {
+            min-height: 96px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        pre {
+            min-height: 74px;
+            max-height: 260px;
+            overflow: auto;
+            margin: 0;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f0f3f8;
+            color: #17202e;
+            font-size: 12px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .kv {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .kv span:first-child {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #f7f9fc;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .badge.good {
+            color: var(--good);
+            border-color: #b7e2c7;
+            background: #eefaf2;
+        }
+
+        .badge.warn {
+            color: var(--warn);
+            border-color: #f1d28a;
+            background: #fff8e6;
+        }
+
+        .badge.bad {
+            color: var(--bad);
+            border-color: #f4b6ae;
+            background: #fff1ef;
+        }
+
+        @media (max-width: 900px) {
+            .shell {
+                padding: 16px;
+            }
+
+            header,
+            .layout {
+                display: block;
+            }
+
+            .status,
+            .panel {
+                margin-bottom: 12px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <header>
+            <div>
+                <h1>Operations Console</h1>
+                <p class="subtitle">Stateful operations runtime for booking, confirmation, tool governance, memory, RAG grounding, escalation, and trace inspection.</p>
+            </div>
+            <div class="status" id="runtime-status">Idle</div>
+        </header>
+
+        <section class="layout">
+            <form class="panel" id="operations-form">
+                <h2>Request</h2>
+                <label for="user-id">User ID</label>
+                <input id="user-id" name="user_id" value="local_user">
+
+                <label for="conversation-id">Conversation ID</label>
+                <input id="conversation-id" name="conversation_id" value="ops_console">
+
+                <label for="message">Message</label>
+                <textarea id="message" name="message">I want to book shoulder relaxation tomorrow at 3pm.</textarea>
+
+                <button type="submit">Run Turn</button>
+                <button type="button" class="secondary" id="confirm-action">Confirm Pending Action</button>
+            </form>
+
+            <div class="grid">
+                <section class="panel">
+                    <h2>Response</h2>
+                    <div class="kv"><span>Intent</span><span id="intent-value">-</span></div>
+                    <div class="kv"><span>Trace ID</span><span id="trace-id-value">-</span></div>
+                    <div class="reply" id="reply-panel">No turn has run yet.</div>
+                </section>
+
+                <section class="panel" id="confirmation-panel">
+                    <h2>Confirmation</h2>
+                    <div id="confirmation-status"><span class="badge">None</span></div>
+                    <pre id="confirmation-json">{}</pre>
+                </section>
+
+                <section class="panel" id="tool-calls-panel">
+                    <h2>Tool Calls</h2>
+                    <pre id="tool-calls-json">[]</pre>
+                </section>
+
+                <section class="panel" id="memory-panel">
+                    <h2>Memory</h2>
+                    <pre id="memory-json">[]</pre>
+                </section>
+
+                <section class="panel" id="rag-panel">
+                    <h2>RAG Sources</h2>
+                    <pre id="rag-json">{}</pre>
+                </section>
+
+                <section class="panel" id="trace-panel">
+                    <h2>Trace</h2>
+                    <pre id="trace-json">{}</pre>
+                </section>
+
+                <section class="panel" id="escalation-panel">
+                    <h2>Escalation</h2>
+                    <div id="escalation-status"><span class="badge">None</span></div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const state = {pendingConfirmation: null, lastResponse: null};
+        const $ = (id) => document.getElementById(id);
+
+        function asJson(value) {
+            return JSON.stringify(value ?? {}, null, 2);
+        }
+
+        function setStatus(text, kind = "") {
+            $("runtime-status").innerHTML = kind ? `<span class="badge ${kind}">${text}</span>` : text;
+        }
+
+        function render(data) {
+            state.lastResponse = data;
+            state.pendingConfirmation = data.confirmation_required ? data.confirmation_request : null;
+            $("intent-value").textContent = data.intent || "-";
+            $("trace-id-value").textContent = data.trace_id || "-";
+            $("reply-panel").textContent = data.reply || "";
+            $("confirmation-json").textContent = asJson(data.confirmation_request || {});
+            $("tool-calls-json").textContent = asJson({
+                planned: data.tool_calls || [],
+                executed: data.executed_tools || []
+            });
+            $("memory-json").textContent = asJson(data.memory_proposals || []);
+            $("rag-json").textContent = asJson(data.rag_citations || {});
+            $("trace-json").textContent = asJson({
+                trace_id: data.trace_id,
+                rag_used: data.rag_used,
+                missing_slots: data.missing_slots || []
+            });
+            $("confirmation-status").innerHTML = data.confirmation_required
+                ? '<span class="badge warn">Required</span>'
+                : '<span class="badge good">Not required</span>';
+            $("escalation-status").innerHTML = data.escalated
+                ? '<span class="badge bad">Escalated</span>'
+                : '<span class="badge good">Not escalated</span>';
+        }
+
+        async function runTurn(payload) {
+            setStatus("Running", "warn");
+            const response = await fetch("/api/operations/chat", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                setStatus(`HTTP ${response.status}`, "bad");
+                throw new Error(`Operations API returned ${response.status}`);
+            }
+            const data = await response.json();
+            render(data);
+            setStatus("Ready", "good");
+            return data;
+        }
+
+        $("operations-form").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            await runTurn({
+                user_id: $("user-id").value,
+                conversation_id: $("conversation-id").value,
+                message: $("message").value
+            });
+        });
+
+        $("confirm-action").addEventListener("click", async () => {
+            if (!state.pendingConfirmation) {
+                setStatus("No pending confirmation", "");
+                return;
+            }
+            await runTurn({
+                user_id: $("user-id").value,
+                conversation_id: $("conversation-id").value,
+                message: "确认",
+                confirmed_tool_name: state.pendingConfirmation.tool_name,
+                confirmed_tool_arguments: state.pendingConfirmation.arguments,
+                confirmation_token: state.pendingConfirmation.confirmation_token
+            });
+        });
+    </script>
+</body>
+</html>

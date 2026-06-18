@@ -187,6 +187,25 @@ def test_operations_chat_exposes_human_escalation():
     assert "raw_prompt" not in body
 
 
+def test_operations_chat_returns_rag_citation_metadata_for_policy_question():
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_rag_api",
+            "conversation_id": "conv_rag_api",
+            "message": "如果我迟到20分钟会怎么样？",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rag_used"] is True
+    assert body["rag_citations"]["rag_used"] is True
+    assert body["rag_citations"]["chunks"][0]["source"] == "booking_policy.md"
+
+
 def test_operations_chat_exposes_memory_proposal_confirmation():
     client = make_client()
 

@@ -86,6 +86,8 @@ python -m harness.runners.run_all --smoke
 - [Demo script](docs/demo-script.md)
 - [Security policy](docs/security-policy.md)
 
+Operations runtime console: `http://127.0.0.1:8000/operations`
+
 ## 核心能力
 
 - **智能任务分类**：自动识别用户是在咨询服务、预约技师、查询无关问题，还是触发用户行为分析，并将请求路由到对应 Agent。
@@ -381,6 +383,7 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8001 --reload
 启动后可以访问：
 
 - Web 页面：http://127.0.0.1:8000
+- Operations runtime console：http://127.0.0.1:8000/operations
 - API 文档：http://127.0.0.1:8000/docs
 - ReDoc 文档：http://127.0.0.1:8000/redoc
 
@@ -425,6 +428,7 @@ python -m harness.runners.run_all --smoke
 ## 主要页面
 
 - 首页聊天与预约入口：`web/templates/index.html`
+- Operations runtime console：`web/templates/operations_console.html`
 - 知识库管理：`web/templates/knowledge_management.html`
 - 技师管理：`web/templates/technician.html`
 - 技师排班：`web/templates/technician_schedule.html`
