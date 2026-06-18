@@ -64,6 +64,7 @@ python -m harness.runners.run_all --smoke
 | memory_write_precision | 1.00 | 0.80 |
 | memory_suppression_accuracy | 1.00 | 0.90 |
 | escalation_accuracy | 1.00 | 0.90 |
+| escalation_reason_accuracy | 1.00 | 0.90 |
 | security_policy_accuracy | 1.00 | 0.90 |
 | p95_latency_ms | reported | n/a |
 

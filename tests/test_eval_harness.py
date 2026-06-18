@@ -1,3 +1,4 @@
+from harness.evaluators.escalation_policy import escalation_reason_passed
 from harness.evaluators.memory_quality import no_memory_proposal_passed
 from harness.evaluators.rag_grounding import rag_decision_passed, rag_groundedness_passed
 from harness.evaluators.slot_accuracy import booking_slots_passed
@@ -48,6 +49,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["rag_decision_accuracy"] >= 0.85
     assert report["metrics"]["rag_groundedness"] >= 0.85
     assert report["metrics"]["memory_suppression_accuracy"] >= 0.90
+    assert report["metrics"]["escalation_reason_accuracy"] >= 0.90
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
     assert all(case["latency_ms"] >= 0 for case in report["cases"])
@@ -110,3 +112,10 @@ def test_memory_suppression_eval_requires_no_proposals():
         {"memory_proposals": [{"type": "preference"}]},
         {"no_memory_proposal": True},
     )
+
+
+def test_escalation_reason_eval_checks_structured_reason():
+    result = {"escalation": {"reason": "medical_concern"}}
+
+    assert escalation_reason_passed(result, {"escalation_reason": "medical_concern"})
+    assert not escalation_reason_passed(result, {"escalation_reason": "refund_dispute"})

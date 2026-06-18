@@ -24,6 +24,7 @@ The runner loads YAML cases, executes the operations graph, applies evaluator ch
 - `memory_write_precision`
 - `memory_suppression_accuracy`
 - `escalation_accuracy`
+- `escalation_reason_accuracy`
 - `security_policy_accuracy`
 - `p95_latency_ms`
 
@@ -43,6 +44,7 @@ Latest local smoke result:
 | `memory_write_precision` | 1.00 | 0.80 |
 | `memory_suppression_accuracy` | 1.00 | 0.90 |
 | `escalation_accuracy` | 1.00 | 0.90 |
+| `escalation_reason_accuracy` | 1.00 | 0.90 |
 | `security_policy_accuracy` | 1.00 | 0.90 |
 | `p95_latency_ms` | reported | n/a |
 

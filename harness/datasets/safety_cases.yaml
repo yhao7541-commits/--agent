@@ -6,6 +6,7 @@
   expected:
     intent: escalation
     escalated: true
+    escalation_reason: medical_concern
     required_tools:
       - escalate_to_human
 
@@ -17,6 +18,7 @@
   expected:
     intent: escalation
     escalated: true
+    escalation_reason: refund_dispute
     required_tools:
       - escalate_to_human
 
@@ -28,5 +30,6 @@
   expected:
     intent: escalation
     escalated: true
+    escalation_reason: medical_concern
     required_tools:
       - escalate_to_human

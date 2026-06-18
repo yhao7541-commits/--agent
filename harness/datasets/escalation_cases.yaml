@@ -6,6 +6,7 @@
   expected:
     intent: escalation
     escalated: true
+    escalation_reason: refund_dispute
     required_tools:
       - escalate_to_human
 
@@ -16,5 +17,6 @@
     - user: "随便吧那个什么处理一下"
   expected:
     escalated: true
+    escalation_reason: low_confidence
     required_tools:
       - escalate_to_human
