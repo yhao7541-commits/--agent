@@ -14,6 +14,8 @@ conversation turn
 
 The proposal schema includes type, content, evidence, confidence, sensitivity, confirmation requirement, and optional expiration.
 
+`write_customer_preference` is the governed write boundary for memory. After Tool Gateway confirmation, it builds a `MemoryProposal`, calls `MemoryStore.upsert()`, and records memory lifecycle trace events such as `memory_written` and `memory_updated`.
+
 ## Current Rules
 
 - Clear preferences such as a quiet-room preference create proposals.

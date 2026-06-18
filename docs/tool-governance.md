@@ -22,3 +22,5 @@ These tools require explicit confirmation:
 - `write_customer_preference`
 
 Read tools such as `check_schedule`, `find_available_staff`, `lookup_customer_profile`, `search_services`, and `search_knowledge_base` can execute without confirmation.
+
+`write_customer_preference` is sensitive and routes confirmed writes into the customer memory lifecycle. Its result status reflects the memory action (`created`, `updated`, or `conflict`) rather than a placeholder success string.

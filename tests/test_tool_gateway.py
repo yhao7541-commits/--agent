@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from tools.base import ToolDefinition, ToolPermission
+from tools.customer_tools import reset_customer_memory_store
 from tools.gateway import ToolGateway
 from tools.registry import ToolRegistry, build_default_tool_registry
 from tools.schemas import ToolExecutionContext
@@ -136,6 +137,7 @@ def test_unconfirmed_customer_preference_write_is_rejected():
 
 
 def test_confirmed_customer_preference_write_executes():
+    reset_customer_memory_store()
     gateway = ToolGateway(build_default_tool_registry())
     context = ToolExecutionContext(
         user_id="user_001",
@@ -156,7 +158,34 @@ def test_confirmed_customer_preference_write_executes():
     )
 
     assert result.success is True
-    assert result.output["status"] == "stored"
+    assert result.output["status"] == "created"
+    assert any(event["event_type"] == "memory_written" for event in context.trace_events)
+
+
+def test_confirmed_customer_preference_write_updates_duplicate_memory():
+    reset_customer_memory_store()
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(
+        user_id="user_001",
+        conversation_id="conv_001",
+        trace_id="trace_001",
+        confirmed_tools={"write_customer_preference"},
+    )
+    arguments = {
+        "user_id": "user_001",
+        "preference_type": "preference",
+        "preference_value": "喜欢安静房间",
+        "evidence": "我以后都喜欢安静一点的房间",
+    }
+
+    first = gateway.execute("write_customer_preference", arguments, context)
+    second = gateway.execute("write_customer_preference", arguments | {"evidence": "再次确认喜欢安静"}, context)
+
+    assert first.success is True
+    assert second.success is True
+    assert second.output["memory_id"] == first.output["memory_id"]
+    assert second.output["status"] == "updated"
+    assert any(event["event_type"] == "memory_updated" for event in context.trace_events)
 
 
 def test_read_tool_executes_without_confirmation_and_traces():
