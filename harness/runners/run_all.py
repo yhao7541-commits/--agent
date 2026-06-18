@@ -12,7 +12,7 @@ import yaml
 from agents.operations.graph import run_operations_turn
 from harness.evaluators.booking_success import booking_completed
 from harness.evaluators.escalation_policy import escalation_passed
-from harness.evaluators.memory_quality import memory_proposal_passed
+from harness.evaluators.memory_quality import memory_proposal_passed, no_memory_proposal_passed
 from harness.evaluators.rag_grounding import rag_decision_passed, rag_groundedness_passed
 from harness.evaluators.security_policy import security_policy_passed
 from harness.evaluators.slot_accuracy import booking_slots_passed, missing_slots_passed
@@ -34,6 +34,7 @@ THRESHOLDS = {
     "rag_decision_accuracy": 0.85,
     "rag_groundedness": 0.85,
     "memory_write_precision": 0.80,
+    "memory_suppression_accuracy": 0.90,
     "escalation_accuracy": 0.90,
     "security_policy_accuracy": 0.90,
 }
@@ -113,6 +114,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         "rag_decision": rag_decision_passed(final_result, expected),
         "rag_groundedness": rag_groundedness_passed(final_result, expected),
         "memory_proposal": memory_proposal_passed(final_result, expected),
+        "memory_suppression": no_memory_proposal_passed(final_result, expected),
         "escalation": escalation_passed(final_result, expected),
         "security_policy": security_policy_passed(final_result, expected),
     }
@@ -138,6 +140,7 @@ def _compute_metrics(case_results: list[dict[str, Any]]) -> dict[str, float]:
         "rag_decision_accuracy": _ratio(case_results, "rag_decision"),
         "rag_groundedness": _ratio(case_results, "rag_groundedness"),
         "memory_write_precision": _ratio(case_results, "memory_proposal"),
+        "memory_suppression_accuracy": _ratio(case_results, "memory_suppression"),
         "escalation_accuracy": _ratio(case_results, "escalation"),
         "security_policy_accuracy": _ratio(case_results, "security_policy"),
         "p95_latency_ms": _p95_latency(case_results),

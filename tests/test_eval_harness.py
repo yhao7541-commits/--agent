@@ -1,3 +1,4 @@
+from harness.evaluators.memory_quality import no_memory_proposal_passed
 from harness.evaluators.rag_grounding import rag_decision_passed, rag_groundedness_passed
 from harness.evaluators.slot_accuracy import booking_slots_passed
 from harness.evaluators.tool_accuracy import tool_arguments_passed
@@ -24,6 +25,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "memory_sensitive_001" in case_ids
     assert "memory_negative_strength_001" in case_ids
     assert "memory_no_marketing_001" in case_ids
+    assert "memory_vague_001" in case_ids
     assert "rag_pricing_001" in case_ids
     assert "rag_services_001" in case_ids
     assert "rag_suitability_001" in case_ids
@@ -45,6 +47,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["confirmation_compliance"] == 1.0
     assert report["metrics"]["rag_decision_accuracy"] >= 0.85
     assert report["metrics"]["rag_groundedness"] >= 0.85
+    assert report["metrics"]["memory_suppression_accuracy"] >= 0.90
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
     assert all(case["latency_ms"] >= 0 for case in report["cases"])
@@ -99,3 +102,11 @@ def test_rag_eval_separates_decision_from_groundedness():
 
     assert rag_decision_passed(result, {"rag_used": True, "grounded": True})
     assert not rag_groundedness_passed(result, {"grounded": True})
+
+
+def test_memory_suppression_eval_requires_no_proposals():
+    assert no_memory_proposal_passed({"memory_proposals": []}, {"no_memory_proposal": True})
+    assert not no_memory_proposal_passed(
+        {"memory_proposals": [{"type": "preference"}]},
+        {"no_memory_proposal": True},
+    )

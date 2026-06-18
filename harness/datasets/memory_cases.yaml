@@ -57,3 +57,14 @@
       content_contains:
         - 营销
     rag_used: false
+
+- id: memory_vague_001
+  suite: memory
+  user_id: eval_memory_005
+  turns:
+    - user: "随便吧，可能安静一点也行"
+  expected:
+    no_memory_proposal: true
+    forbidden_tools:
+      - write_customer_preference
+    rag_used: false

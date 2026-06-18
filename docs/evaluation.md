@@ -22,6 +22,7 @@ The runner loads YAML cases, executes the operations graph, applies evaluator ch
 - `rag_decision_accuracy`
 - `rag_groundedness`
 - `memory_write_precision`
+- `memory_suppression_accuracy`
 - `escalation_accuracy`
 - `security_policy_accuracy`
 - `p95_latency_ms`
@@ -40,8 +41,9 @@ Latest local smoke result:
 | `rag_decision_accuracy` | 1.00 | 0.85 |
 | `rag_groundedness` | 1.00 | 0.85 |
 | `memory_write_precision` | 1.00 | 0.80 |
+| `memory_suppression_accuracy` | 1.00 | 0.90 |
 | `escalation_accuracy` | 1.00 | 0.90 |
 | `security_policy_accuracy` | 1.00 | 0.90 |
 | `p95_latency_ms` | reported | n/a |
 
-The current smoke suite has 30 cases and all metrics pass their initial thresholds. The next scale-up step is expanding datasets toward the planned 150+ cases.
+The current smoke suite has 31 cases and all metrics pass their initial thresholds. The next scale-up step is expanding datasets toward the planned 150+ cases.
