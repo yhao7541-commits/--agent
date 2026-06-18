@@ -11,7 +11,7 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 121
+    assert len(cases) >= 122
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
@@ -47,6 +47,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "rag_late_arrival_002" in case_ids
     assert "rag_staff_technique_002" in case_ids
     assert "rag_price_amount_003" in case_ids
+    assert "rag_knowledge_gap_001" in case_ids
     assert "tool_service_catalog_001" in case_ids
     assert "tool_booking_no_rag_001" in case_ids
     assert "tool_cancel_no_rag_001" in case_ids
