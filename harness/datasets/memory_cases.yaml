@@ -27,3 +27,33 @@
       content_contains:
         - 过敏
     rag_used: false
+
+- id: memory_negative_strength_001
+  suite: memory
+  user_id: eval_memory_003
+  turns:
+    - user: "我以后不喜欢大力度"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: negative_preference
+      content_contains:
+        - 大力度
+    rag_used: false
+
+- id: memory_no_marketing_001
+  suite: memory
+  user_id: eval_memory_004
+  turns:
+    - user: "以后不要营销推荐"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: policy_note
+      content_contains:
+        - 营销
+    rag_used: false

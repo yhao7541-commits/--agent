@@ -77,6 +77,38 @@
     booking_completed: false
     rag_used: false
 
+- id: booking_morning_001
+  suite: booking
+  user_id: eval_booking_011
+  turns:
+    - user: "我想明天上午9点约推拿"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 推拿
+      time_window: "09:00"
+    rag_used: false
+
+- id: booking_evening_001
+  suite: booking
+  user_id: eval_booking_012
+  turns:
+    - user: "我想今天晚上8点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 按摩
+      time_window: "20:00"
+    rag_used: false
+
 - id: booking_fuzzy_time_001
   suite: booking
   user_id: eval_booking_005

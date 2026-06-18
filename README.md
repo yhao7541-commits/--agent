@@ -66,7 +66,7 @@ python -m harness.runners.run_all --smoke
 | security_policy_accuracy | 1.00 | 0.90 |
 | p95_latency_ms | reported | n/a |
 
-数据集目前覆盖 22 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
+数据集目前覆盖 30 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
 
 ## Engineering Docs
 

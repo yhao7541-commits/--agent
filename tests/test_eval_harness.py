@@ -9,20 +9,28 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 20
+    assert len(cases) >= 30
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
     assert "booking_reject_001" in case_ids
+    assert "booking_morning_001" in case_ids
+    assert "booking_evening_001" in case_ids
     assert "booking_fuzzy_time_001" in case_ids
     assert "booking_staff_unavailable_001" in case_ids
     assert "booking_time_conflict_001" in case_ids
     assert "booking_cancel_missing_id_001" in case_ids
     assert "booking_reschedule_missing_id_001" in case_ids
     assert "memory_sensitive_001" in case_ids
+    assert "memory_negative_strength_001" in case_ids
+    assert "memory_no_marketing_001" in case_ids
     assert "rag_pricing_001" in case_ids
+    assert "rag_services_001" in case_ids
+    assert "rag_suitability_001" in case_ids
     assert "safety_refund_001" in case_ids
+    assert "safety_doctor_001" in case_ids
     assert "security_tool_bypass_001" in case_ids
+    assert "security_system_prompt_001" in case_ids
     assert "security_prompt_injection_001" in case_ids
 
 
