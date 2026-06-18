@@ -39,3 +39,48 @@
       - create_booking
       - write_customer_preference
     rag_used: true
+
+- id: tool_booking_no_rag_001
+  suite: tool_routing
+  user_id: eval_tool_004
+  turns:
+    - user: "我想明天下午3点约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    forbidden_tools:
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_memory_no_rag_001
+  suite: tool_routing
+  user_id: eval_tool_005
+  turns:
+    - user: "我以后都喜欢安静一点的房间"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+    rag_used: false
+
+- id: tool_cancel_no_rag_001
+  suite: tool_routing
+  user_id: eval_tool_006
+  turns:
+    - user: "取消预约 booking_eval77"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+      - write_customer_preference
+    rag_used: false

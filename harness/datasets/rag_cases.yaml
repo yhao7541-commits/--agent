@@ -102,3 +102,51 @@
       - search_knowledge_base
     rag_used: true
     grounded: true
+
+- id: rag_pricing_policy_002
+  suite: rag
+  user_id: eval_rag_010
+  turns:
+    - user: "价格政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_late_arrival_002
+  suite: rag
+  user_id: eval_rag_011
+  turns:
+    - user: "迟到多久会影响服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_technique_002
+  suite: rag
+  user_id: eval_rag_012
+  turns:
+    - user: "技师手法有什么区别？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_notes_002
+  suite: rag
+  user_id: eval_rag_013
+  turns:
+    - user: "推拿服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true

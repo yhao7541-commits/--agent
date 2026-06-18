@@ -32,3 +32,14 @@
     escalation_reason: refund_dispute
     required_tools:
       - escalate_to_human
+
+- id: escalation_low_confidence_002
+  suite: escalation
+  user_id: eval_escalation_004
+  turns:
+    - user: "这个那个先处理一下吧"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human

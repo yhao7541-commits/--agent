@@ -11,7 +11,7 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 50
+    assert len(cases) >= 70
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
@@ -36,13 +36,23 @@ def test_eval_harness_loads_yaml_cases():
     assert "booking_today_morning_range_001" in case_ids
     assert "booking_cancel_polite_missing_id_001" in case_ids
     assert "booking_reschedule_morning_001" in case_ids
+    assert "booking_missing_time_001" in case_ids
+    assert "booking_missing_service_001" in case_ids
+    assert "booking_reschedule_tomorrow_evening_001" in case_ids
+    assert "booking_time_conflict_push_001" in case_ids
     assert "rag_staff_specialty_001" in case_ids
     assert "rag_safety_pregnancy_001" in case_ids
+    assert "rag_late_arrival_002" in case_ids
+    assert "rag_staff_technique_002" in case_ids
     assert "tool_service_catalog_001" in case_ids
+    assert "tool_booking_no_rag_001" in case_ids
+    assert "tool_cancel_no_rag_001" in case_ids
     assert "memory_lively_room_001" in case_ids
     assert "memory_recall_booking_001" in case_ids
+    assert "memory_no_preference_question_001" in case_ids
     assert "security_direct_execute_001" in case_ids
     assert "escalation_staff_complaint_001" in case_ids
+    assert "escalation_low_confidence_002" in case_ids
     assert "memory_sensitive_001" in case_ids
     assert "memory_negative_strength_001" in case_ids
     assert "memory_no_marketing_001" in case_ids
