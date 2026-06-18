@@ -27,6 +27,9 @@ MEMORY_KEYWORDS = ("喜欢", "不喜欢", "过敏", "不要营销", "别营销")
 MEMORY_DELETE_KEYWORDS = ("删除", "忘记", "不要记", "别记")
 BOOKING_SLOT_UPDATE_KEYWORDS = ("今天", "明天", "上午", "下午", "晚上", "点", "分钟", "安静")
 BOOKING_WRITE_TOOLS = {"create_booking", "reschedule_booking", "cancel_booking"}
+BOOKING_READ_TOOLS = {"search_services", "check_schedule", "find_available_staff"}
+BOOKING_OPERATION_TOOLS = BOOKING_READ_TOOLS | BOOKING_WRITE_TOOLS
+BOOKING_TOOL_FAILURE_ESCALATION_THRESHOLD = 2
 MEMORY_WRITE_TOOLS = {"write_customer_preference", "delete_customer_memory"}
 LOCAL_TIMEZONE = timezone(timedelta(hours=8))
 
@@ -518,6 +521,10 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
             _apply_staff_availability_issue(state, result.output)
         if result.success and result.tool_name == "check_schedule":
             _apply_schedule_issue(state, result.output)
+        if len(_booking_tool_failures(results)) >= BOOKING_TOOL_FAILURE_ESCALATION_THRESHOLD:
+            break
+
+    _apply_tool_failure_escalation(state, context, gateway, results)
 
     state["tool_results"] = results
     state["trace_events"] = context.trace_events
@@ -680,6 +687,84 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
         if result.get("tool_name") == tool_name and result.get("success"):
             return result
     return None
+
+
+def _booking_tool_failures(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    failures = []
+    for result in results:
+        error_code = (result.get("error") or {}).get("code")
+        if (
+            result.get("tool_name") in BOOKING_OPERATION_TOOLS
+            and not result.get("success")
+            and error_code != "confirmation_required"
+        ):
+            failures.append(result)
+    return failures
+
+
+def _apply_tool_failure_escalation(
+    state: OperationsAgentState,
+    context: ToolExecutionContext,
+    gateway: ToolGateway,
+    results: list[dict[str, Any]],
+) -> None:
+    if state.get("escalated"):
+        return
+
+    failures = _booking_tool_failures(results)
+    if len(failures) < BOOKING_TOOL_FAILURE_ESCALATION_THRESHOLD:
+        return
+
+    failure_summary = [
+        {
+            "tool_name": failure.get("tool_name"),
+            "code": (failure.get("error") or {}).get("code", "tool_error"),
+        }
+        for failure in failures
+    ]
+    escalation = _build_escalation(
+        state,
+        reason="tool_failure",
+        requested_action="booking_tool_failure_review",
+    )
+    escalation["tool_failures"] = failure_summary
+
+    state["escalated"] = True
+    state["escalation"] = escalation
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+
+    escalation_plan = {
+        "tool_name": "escalate_to_human",
+        "arguments": {
+            "reason": escalation["reason"],
+            "summary": escalation["summary"],
+        },
+        "permission": "external",
+    }
+    state["tool_plan"] = [
+        planned_tool
+        for planned_tool in state.get("tool_plan", [])
+        if planned_tool.get("tool_name") not in BOOKING_WRITE_TOOLS
+    ]
+    state["tool_plan"].append(escalation_plan)
+    context.trace_events.append(
+        {
+            "trace_id": context.trace_id,
+            "conversation_id": context.conversation_id,
+            "node": "execute_tools",
+            "event_type": "escalation_triggered",
+            "metadata": {"reason": "tool_failure", "tool_failures": failure_summary},
+            "error": None,
+        }
+    )
+    results.append(
+        gateway.execute(
+            escalation_plan["tool_name"],
+            escalation_plan["arguments"],
+            context,
+        ).model_dump()
+    )
 
 
 def _is_memory_delete_request(message: str) -> bool:

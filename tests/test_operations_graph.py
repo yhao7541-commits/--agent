@@ -1,6 +1,15 @@
+import agents.operations.nodes as operation_nodes
 from agents.operations.graph import build_operations_graph, run_operations_turn
 from agents.operations.nodes import output_policy_check
+from tools.base import ToolDefinition, ToolPermission
 from tools.customer_tools import reset_customer_memory_store
+from tools.registry import build_default_tool_registry
+from tools.schemas import (
+    CheckScheduleInput,
+    CheckScheduleOutput,
+    FindAvailableStaffInput,
+    FindAvailableStaffOutput,
+)
 
 
 def test_operations_graph_compiles():
@@ -543,3 +552,55 @@ def test_low_confidence_unknown_request_escalates_to_human():
     assert result["escalated"] is True
     assert result["escalation"]["reason"] == "low_confidence"
     assert any(plan["tool_name"] == "escalate_to_human" for plan in result["tool_plan"])
+
+
+def test_repeated_booking_tool_failures_escalate_to_human(monkeypatch):
+    registry = build_default_tool_registry()
+
+    def fail_handler(arguments, context):
+        raise RuntimeError("booking dependency unavailable")
+
+    registry.register(
+        ToolDefinition(
+            name="find_available_staff",
+            description="Failing staff lookup",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=FindAvailableStaffInput,
+            output_schema=FindAvailableStaffOutput,
+            handler=fail_handler,
+            max_retries=0,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="check_schedule",
+            description="Failing schedule lookup",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=CheckScheduleInput,
+            output_schema=CheckScheduleOutput,
+            handler=fail_handler,
+            max_retries=0,
+        )
+    )
+    monkeypatch.setattr(operation_nodes, "build_default_tool_registry", lambda: registry)
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_tool_failure",
+            "conversation_id": "conv_tool_failure",
+            "message": "我想明天下午3点约肩颈放松",
+        }
+    )
+
+    assert result["escalated"] is True
+    assert result["escalation"]["reason"] == "tool_failure"
+    assert result["confirmation_required"] is False
+    assert all(plan["tool_name"] != "create_booking" for plan in result["tool_plan"])
+    assert all(tool_result.get("tool_name") != "create_booking" for tool_result in result["tool_results"])
+    assert any(
+        tool_result.get("tool_name") == "escalate_to_human" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+    assert "人工" in result["reply"]

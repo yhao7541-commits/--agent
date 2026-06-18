@@ -12,4 +12,4 @@ The current operations runtime follows conservative guardrails:
 
 ## Escalation Triggers
 
-The runtime escalates low-confidence requests, medical or safety concerns, refund disputes, complaints, and other cases where automation should not decide alone.
+The runtime escalates low-confidence requests, medical or safety concerns, refund disputes, complaints, repeated booking tool failures, and other cases where automation should not decide alone.
