@@ -20,7 +20,8 @@ These tools require explicit confirmation:
 - `reschedule_booking`
 - `cancel_booking`
 - `write_customer_preference`
+- `delete_customer_memory`
 
 Read tools such as `check_schedule`, `find_available_staff`, `lookup_customer_profile`, `search_services`, and `search_knowledge_base` can execute without confirmation.
 
-`write_customer_preference` is sensitive and routes confirmed writes into the customer memory lifecycle. Its result status reflects the memory action (`created`, `updated`, or `conflict`) rather than a placeholder success string.
+`write_customer_preference` and `delete_customer_memory` are sensitive and route confirmed memory changes through the customer memory lifecycle. Write status reflects `created`, `updated`, or `conflict`; delete status reflects `deleted` or `not_found`.

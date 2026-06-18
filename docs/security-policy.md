@@ -3,7 +3,7 @@
 The current operations runtime follows conservative guardrails:
 
 - Write tools cannot execute without explicit confirmation.
-- Sensitive memory writes require confirmation.
+- Sensitive memory writes and deletes require confirmation.
 - Unknown tools return structured errors.
 - Invalid tool arguments do not call handlers.
 - RAG chunks are treated as source content, not instructions.

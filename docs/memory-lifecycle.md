@@ -14,7 +14,7 @@ conversation turn
 
 The proposal schema includes type, content, evidence, confidence, sensitivity, confirmation requirement, and optional expiration.
 
-`write_customer_preference` is the governed write boundary for memory. After Tool Gateway confirmation, it builds a `MemoryProposal`, calls `MemoryStore.upsert()`, and records memory lifecycle trace events such as `memory_written` and `memory_updated`. `lookup_customer_profile` reads the same store and returns active preference content as customer context.
+`write_customer_preference` is the governed write boundary for memory. After Tool Gateway confirmation, it builds a `MemoryProposal`, calls `MemoryStore.upsert()`, and records memory lifecycle trace events such as `memory_written` and `memory_updated`. `delete_customer_memory` is the governed delete boundary and also requires confirmation before calling `MemoryStore.delete()`. `lookup_customer_profile` reads the same store and returns active preference content plus memory IDs as customer context.
 
 ## Current Rules
 
@@ -23,4 +23,4 @@ The proposal schema includes type, content, evidence, confidence, sensitivity, c
 - Allergy and privacy-like constraints are sensitive and require confirmation.
 - Duplicate memory updates the existing record.
 - Conflicting memory returns a conflict result rather than silently overwriting.
-- Deletes are supported by `MemoryStore.delete`.
+- Deletes are routed through `delete_customer_memory`, require confirmation, and emit `memory_deleted` trace events.
