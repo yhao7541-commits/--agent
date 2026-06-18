@@ -73,13 +73,13 @@ class ToolGateway:
             )
             self._trace(context, "tool_error", tool_name, result.error)
             return result
-        except Exception as exc:
+        except Exception:
             result = ToolResult(
                 tool_name=tool_name,
                 success=False,
                 error={
                     "code": "tool_execution_error",
-                    "message": str(exc),
+                    "message": "Tool execution failed.",
                 },
             )
             self._trace(context, "tool_error", tool_name, result.error)

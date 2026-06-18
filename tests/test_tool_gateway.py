@@ -334,6 +334,35 @@ def test_write_tool_does_not_retry_handler_failure():
     assert len(calls) == 1
 
 
+def test_handler_exception_message_is_sanitized():
+    def handler(arguments, context):
+        raise RuntimeError("database password=secret-token")
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="failing_read_tool",
+            description="Failing read test tool",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=CustomInput,
+            output_schema=CustomOutput,
+            handler=handler,
+            max_retries=0,
+        )
+    )
+    gateway = ToolGateway(registry)
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute("failing_read_tool", {"value": "ok"}, context)
+
+    assert result.success is False
+    assert result.error["code"] == "tool_execution_error"
+    assert "secret-token" not in result.error["message"]
+    assert "password" not in result.error["message"]
+    assert "secret-token" not in context.trace_events[-1]["error"]["message"]
+
+
 def test_tool_timeout_returns_controlled_error():
     def handler(arguments, context):
         time.sleep(0.05)
