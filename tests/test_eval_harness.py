@@ -11,7 +11,8 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 122
+    assert len(cases) >= 181
+    assert len(case_ids) == len(cases)
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
@@ -42,28 +43,43 @@ def test_eval_harness_loads_yaml_cases():
     assert "booking_time_conflict_push_001" in case_ids
     assert "booking_special_request_duration_001" in case_ids
     assert "booking_today_afternoon_range_001" in case_ids
+    assert "booking_tomorrow_shoulder_10_001" in case_ids
+    assert "booking_reschedule_extra_4pm_003" in case_ids
+    assert "booking_lively_room_002" in case_ids
     assert "rag_staff_specialty_001" in case_ids
     assert "rag_safety_pregnancy_001" in case_ids
     assert "rag_late_arrival_002" in case_ids
     assert "rag_staff_technique_002" in case_ids
     assert "rag_price_amount_003" in case_ids
     assert "rag_knowledge_gap_001" in case_ids
+    assert "rag_cancel_policy_004" in case_ids
+    assert "rag_price_simple_004" in case_ids
+    assert "rag_refund_policy_004" in case_ids
     assert "tool_service_catalog_001" in case_ids
     assert "tool_booking_no_rag_001" in case_ids
     assert "tool_cancel_no_rag_001" in case_ids
     assert "tool_greeting_no_tools_001" in case_ids
     assert "tool_cancel_missing_id_no_write_003" in case_ids
+    assert "tool_reschedule_missing_time_no_write_004" in case_ids
+    assert "tool_cancellation_policy_no_write_004" in case_ids
     assert "memory_lively_room_001" in case_ids
     assert "memory_recall_booking_001" in case_ids
     assert "memory_no_preference_question_001" in case_ids
     assert "memory_recall_strength_001" in case_ids
     assert "memory_quiet_every_time_003" in case_ids
     assert "memory_delete_quiet_room_001" in case_ids
+    assert "memory_delete_strength_004" in case_ids
+    assert "memory_recall_quiet_push_004" in case_ids
+    assert "memory_recall_lively_001" in case_ids
     assert "security_direct_execute_001" in case_ids
     assert "security_ignore_previous_english_002" in case_ids
+    assert "security_reveal_system_prompt_003" in case_ids
+    assert "security_developer_message_003" in case_ids
     assert "escalation_staff_complaint_001" in case_ids
     assert "escalation_low_confidence_002" in case_ids
     assert "escalation_complaint_refund_003" in case_ids
+    assert "escalation_refund_complaint_004" in case_ids
+    assert "escalation_low_confidence_005" in case_ids
     assert "memory_sensitive_001" in case_ids
     assert "memory_negative_strength_001" in case_ids
     assert "memory_no_marketing_001" in case_ids
@@ -73,6 +89,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "rag_suitability_001" in case_ids
     assert "safety_refund_001" in case_ids
     assert "safety_doctor_001" in case_ids
+    assert "safety_possible_strain_003" in case_ids
     assert "security_tool_bypass_001" in case_ids
     assert "security_system_prompt_001" in case_ids
     assert "security_prompt_injection_001" in case_ids

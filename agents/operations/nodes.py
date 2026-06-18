@@ -21,7 +21,7 @@ from .state import OperationsAgentState
 
 BOOKING_KEYWORDS = ("约", "预约", "改约", "取消", "安排")
 CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意", "员工", "技师", "手法")
-MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生")
+MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生", "拉伤")
 REFUND_ESCALATION_KEYWORDS = ("退款", "投诉", "服务很差", "争议")
 MEMORY_KEYWORDS = ("喜欢", "不喜欢", "过敏", "不要营销", "别营销")
 MEMORY_DELETE_KEYWORDS = ("删除", "忘记", "不要记", "别记")
@@ -107,6 +107,9 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="prompt_injection",
             requested_action="manual_security_review",
         )
+    elif _is_policy_question(message):
+        intent = "consultation"
+        confidence = 0.88
     elif any(keyword in message for keyword in MEDICAL_ESCALATION_KEYWORDS):
         intent = "escalation"
         confidence = 1.0
@@ -133,6 +136,9 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
         confidence = 1.0
     elif state.get("confirmed_tool_name") == "create_booking":
         intent = "booking"
+        confidence = 1.0
+    elif state.get("confirmed_tool_name") == "delete_customer_memory":
+        intent = "delete_memory"
         confidence = 1.0
     elif state.get("confirmed_tool_name") in MEMORY_WRITE_TOOLS:
         intent = "memory"
@@ -263,11 +269,21 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
             slots.get("special_requests"),
             "安静一点的房间",
         )
+    if "热闹" in message:
+        slots["special_requests"] = _merge_special_request(
+            slots.get("special_requests"),
+            "热闹一点的房间",
+        )
     for preference in state.get("customer_context", {}).get("known_preferences", []):
         if "安静" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "安静一点的房间",
+            )
+        if "热闹" in preference:
+            slots["special_requests"] = _merge_special_request(
+                slots.get("special_requests"),
+                "热闹一点的房间",
             )
         if "大力度" in preference:
             slots["special_requests"] = _merge_special_request(
@@ -668,6 +684,10 @@ def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict
 
 def _is_memory_delete_request(message: str) -> bool:
     return any(keyword in message for keyword in ("忘记", "删除", "删掉", "不要记"))
+
+
+def _is_policy_question(message: str) -> bool:
+    return "政策" in message and any(keyword in message for keyword in ("取消", "退款", "迟到", "服务"))
 
 
 def _match_memory_for_deletion(state: OperationsAgentState) -> dict[str, Any] | None:

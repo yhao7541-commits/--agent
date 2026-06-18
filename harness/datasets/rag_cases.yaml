@@ -270,3 +270,99 @@
       - search_knowledge_base
     rag_used: true
     grounded: false
+
+- id: rag_cancel_policy_004
+  suite: rag
+  user_id: eval_rag_020
+  turns:
+    - user: "取消政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_employee_features_004
+  suite: rag
+  user_id: eval_rag_021
+  turns:
+    - user: "员工特点有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_suitability_004
+  suite: rag
+  user_id: eval_rag_022
+  turns:
+    - user: "服务适合哪些人？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_price_simple_004
+  suite: rag
+  user_id: eval_rag_023
+  turns:
+    - user: "价格是多少？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_attention_massage_004
+  suite: rag
+  user_id: eval_rag_024
+  turns:
+    - user: "服务注意事项有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_refund_policy_004
+  suite: rag
+  user_id: eval_rag_020
+  turns:
+    - user: "退款政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_cancellation_detail_004
+  suite: rag
+  user_id: eval_rag_021
+  turns:
+    - user: "取消政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_moon_policy_gap_004
+  suite: rag
+  user_id: eval_rag_022
+  turns:
+    - user: "你们有没有月球露营按摩政策？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: false

@@ -243,3 +243,199 @@
       - create_booking
       - write_customer_preference
     rag_used: false
+
+- id: tool_greeting_no_tools_004
+  suite: tool_routing
+  user_id: eval_tool_018
+  turns:
+    - user: "你好"
+  expected:
+    intent: greeting
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_booking_missing_time_no_create_004
+  suite: tool_routing
+  user_id: eval_tool_019
+  turns:
+    - user: "我想明天约按摩"
+  expected:
+    intent: booking
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_reschedule_missing_time_no_write_004
+  suite: tool_routing
+  user_id: eval_tool_020
+  turns:
+    - user: "把 booking_tool88 改约到明天"
+  expected:
+    intent: reschedule
+    forbidden_tools:
+      - reschedule_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_cancel_with_id_no_rag_004
+  suite: tool_routing
+  user_id: eval_tool_021
+  turns:
+    - user: "取消预约 booking_tool99"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_late_policy_no_booking_004
+  suite: tool_routing
+  user_id: eval_tool_022
+  turns:
+    - user: "迟到会影响服务吗？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_cancellation_policy_no_write_004
+  suite: tool_routing
+  user_id: eval_tool_015
+  turns:
+    - user: "取消政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - cancel_booking
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_safety_suitability_no_booking_004
+  suite: tool_routing
+  user_id: eval_tool_016
+  turns:
+    - user: "哪些人不适合做服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_booking_missing_time_no_read_004
+  suite: tool_routing
+  user_id: eval_tool_017
+  turns:
+    - user: "我想明天预约按摩"
+  expected:
+    intent: booking
+    missing_slots:
+      - time_window
+    forbidden_tools:
+      - search_knowledge_base
+      - find_available_staff
+      - check_schedule
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_reschedule_missing_time_no_write_005
+  suite: tool_routing
+  user_id: eval_tool_018
+  turns:
+    - user: "把 booking_9999 改约到明天"
+  expected:
+    intent: reschedule
+    missing_slots:
+      - new_time_window
+    forbidden_tools:
+      - reschedule_booking
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_cancel_confirmation_only_cancel_004
+  suite: tool_routing
+  user_id: eval_tool_019
+  turns:
+    - user: "取消预约 booking_tool19"
+    - user: "确认"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    forbidden_tools:
+      - create_booking
+      - reschedule_booking
+      - write_customer_preference
+      - search_knowledge_base
+    rag_used: false
+
+- id: tool_delete_memory_no_business_tools_004
+  suite: tool_routing
+  user_id: eval_tool_020
+  turns:
+    - user: "我以后都喜欢安静一点的房间"
+    - user: "确认"
+    - user: "请忘记安静房间这个偏好"
+    - user: "确认"
+  expected:
+    intent: delete_memory
+    required_tools:
+      - write_customer_preference
+      - delete_customer_memory
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+    rag_used: false
+
+- id: tool_unknown_low_confidence_only_escalates_004
+  suite: tool_routing
+  user_id: eval_tool_021
+  turns:
+    - user: "这个先那样处理一下"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+      - write_customer_preference
+
+- id: tool_greeting_no_tools_005
+  suite: tool_routing
+  user_id: eval_tool_022
+  turns:
+    - user: "您好"
+  expected:
+    intent: greeting
+    forbidden_tools:
+      - search_knowledge_base
+      - find_available_staff
+      - check_schedule
+      - create_booking
+      - write_customer_preference
+    rag_used: false

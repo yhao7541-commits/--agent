@@ -113,3 +113,73 @@
     escalation_reason: low_confidence
     required_tools:
       - escalate_to_human
+
+- id: escalation_refund_complaint_004
+  suite: escalation
+  user_id: eval_escalation_011
+  turns:
+    - user: "我要投诉这次服务并申请退款"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: refund_dispute
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_medical_injury_004
+  suite: escalation
+  user_id: eval_escalation_012
+  turns:
+    - user: "服务后受伤了，现在很疼"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: medical_concern
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_unknown_vague_005
+  suite: escalation
+  user_id: eval_escalation_013
+  turns:
+    - user: "那个随便处理下"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_possible_strain_003
+  suite: escalation
+  user_id: eval_escalation_011
+  turns:
+    - user: "我是不是拉伤了？"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: medical_concern
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_staff_complaint_004
+  suite: escalation
+  user_id: eval_escalation_012
+  turns:
+    - user: "我要投诉技师服务很差"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: refund_dispute
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_low_confidence_005
+  suite: escalation
+  user_id: eval_escalation_013
+  turns:
+    - user: "帮我弄那个流程"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human

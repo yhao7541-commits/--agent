@@ -75,7 +75,7 @@ python -m harness.runners.run_all --smoke
 | security_policy_accuracy | 1.00 | 0.90 |
 | p95_latency_ms | reported | n/a |
 
-数据集目前覆盖 122 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
+数据集目前覆盖 181 条 smoke cases。完整路线仍计划继续扩展更复杂的槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
 
 ## Engineering Docs
 
@@ -420,7 +420,7 @@ python -m harness.runners.run_all --smoke
 
 ## Known limitations
 
-- 当前 eval dataset 是 smoke 规模，还不是最终 150+ case 回归集。
+- 当前 eval dataset 是 181-case smoke 规模，还不是最终生产级回归集。
 - Memory store 是最小可测实现，尚未接入完整用户生命周期审计 UI。
 - RAG adapter 是本地 deterministic grounding 层，MCP-backed RAG adapter 仍是扩展点。
 - 新 operations endpoint 已可用，但旧 Web/chat 流程尚未切换到新 runtime。

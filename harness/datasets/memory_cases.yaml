@@ -262,3 +262,159 @@
       content_contains:
         - 安静
     rag_used: false
+
+- id: memory_lively_remember_004
+  suite: memory
+  user_id: eval_memory_019
+  turns:
+    - user: "我喜欢热闹一点的房间，之后请记住"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: preference
+      content_contains:
+        - 热闹
+    rag_used: false
+
+- id: memory_no_marketing_again_004
+  suite: memory
+  user_id: eval_memory_020
+  turns:
+    - user: "我以后不要营销推荐"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: policy_note
+      content_contains:
+        - 营销
+    rag_used: false
+
+- id: memory_oil_allergy_again_004
+  suite: memory
+  user_id: eval_memory_021
+  turns:
+    - user: "我对精油过敏，以后不要用"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: constraint
+      content_contains:
+        - 过敏
+    rag_used: false
+
+- id: memory_delete_strength_004
+  suite: memory
+  user_id: eval_memory_022
+  turns:
+    - user: "我不喜欢大力度，以后请记住"
+    - user: "确认"
+    - user: "请忘记大力度这个偏好"
+    - user: "确认"
+    - user: "我想明天下午3点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - write_customer_preference
+      - delete_customer_memory
+      - create_booking
+    memory_deleted:
+      known_preference_not_contains:
+        - 大力度
+      confirmation_summary_not_contains:
+        - 大力度
+    rag_used: false
+
+- id: memory_recall_quiet_push_004
+  suite: memory
+  user_id: eval_memory_023
+  turns:
+    - user: "我以后都喜欢安静一点的房间"
+    - user: "确认"
+    - user: "我想明天下午4点约推拿"
+  expected:
+    intent: booking
+    required_tools:
+      - write_customer_preference
+      - create_booking
+    memory_recall:
+      known_preference_contains:
+        - 安静
+      confirmation_summary_contains:
+        - 安静
+    rag_used: false
+
+- id: memory_recall_lively_001
+  suite: memory
+  user_id: eval_memory_019
+  turns:
+    - user: "我喜欢热闹一点的房间"
+    - user: "确认"
+    - user: "我想明天下午3点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - write_customer_preference
+      - create_booking
+    memory_recall:
+      known_preference_contains:
+        - 热闹
+      confirmation_summary_contains:
+        - 热闹
+    rag_used: false
+
+- id: memory_delete_marketing_002
+  suite: memory
+  user_id: eval_memory_020
+  turns:
+    - user: "以后不要营销推荐"
+    - user: "确认"
+    - user: "请忘记营销这个偏好"
+    - user: "确认"
+    - user: "您好"
+  expected:
+    intent: greeting
+    required_tools:
+      - write_customer_preference
+      - delete_customer_memory
+    memory_deleted:
+      known_preference_not_contains:
+        - 营销
+    rag_used: false
+
+- id: memory_delete_missing_memory_001
+  suite: memory
+  user_id: eval_memory_021
+  turns:
+    - user: "请忘记安静房间这个偏好"
+  expected:
+    intent: delete_memory
+    missing_slots:
+      - memory_id
+    forbidden_tools:
+      - delete_customer_memory
+    rag_used: false
+
+- id: memory_delete_allergy_002
+  suite: memory
+  user_id: eval_memory_022
+  turns:
+    - user: "我对精油过敏，请记住"
+    - user: "确认"
+    - user: "请忘记过敏这个偏好"
+    - user: "确认"
+    - user: "您好"
+  expected:
+    intent: greeting
+    required_tools:
+      - write_customer_preference
+      - delete_customer_memory
+    memory_deleted:
+      known_preference_not_contains:
+        - 过敏
+    rag_used: false
