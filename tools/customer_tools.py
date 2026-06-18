@@ -37,9 +37,34 @@ def write_customer_preference(arguments: BaseModel, context) -> dict:
     }
 
 
+def delete_customer_memory(arguments: BaseModel, context) -> dict:
+    memory_id = getattr(arguments, "memory_id")
+    deleted = _memory_store.delete(
+        user_id=getattr(arguments, "user_id", context.user_id),
+        memory_id=memory_id,
+        trace_id=context.trace_id,
+        conversation_id=context.conversation_id,
+        trace_events=context.trace_events,
+    )
+    return {
+        "memory_id": memory_id,
+        "status": "deleted" if deleted else "not_found",
+    }
+
+
 def lookup_customer_profile(arguments: BaseModel, context) -> dict:
     user_id = getattr(arguments, "user_id", context.user_id)
+    memories = _memory_store.list_user_memories(user_id)
     return {
         "user_id": user_id,
-        "known_preferences": [memory.content for memory in _memory_store.list_user_memories(user_id)],
+        "known_preferences": [memory.content for memory in memories],
+        "memories": [
+            {
+                "memory_id": memory.id,
+                "type": memory.type,
+                "content": memory.content,
+                "sensitivity": memory.sensitivity,
+            }
+            for memory in memories
+        ],
     }

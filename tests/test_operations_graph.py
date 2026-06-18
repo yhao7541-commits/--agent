@@ -376,6 +376,110 @@ def test_booking_uses_stored_customer_preference_in_confirmation_summary():
     assert "安静" in result["confirmation_request"]["summary"]["special_requests"]
 
 
+def test_confirmed_memory_delete_removes_preference_from_future_context():
+    reset_customer_memory_store()
+    pending_memory = run_operations_turn(
+        {
+            "user_id": "user_memory_delete",
+            "conversation_id": "conv_memory_delete",
+            "message": "我以后都喜欢安静一点的房间",
+        }
+    )
+    run_operations_turn(
+        {
+            "user_id": "user_memory_delete",
+            "conversation_id": "conv_memory_delete",
+            "message": "确认",
+            "confirmed_tool_name": pending_memory["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending_memory["confirmation_request"]["arguments"],
+            "confirmation_token": pending_memory["confirmation_request"]["confirmation_token"],
+        }
+    )
+
+    pending_delete = run_operations_turn(
+        {
+            "user_id": "user_memory_delete",
+            "conversation_id": "conv_memory_delete",
+            "message": "请忘记安静房间这个偏好",
+        }
+    )
+    result = run_operations_turn(
+        {
+            "user_id": "user_memory_delete",
+            "conversation_id": "conv_memory_delete",
+            "message": "确认",
+            "confirmed_tool_name": pending_delete["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending_delete["confirmation_request"]["arguments"],
+            "confirmation_token": pending_delete["confirmation_request"]["confirmation_token"],
+        }
+    )
+    follow_up = run_operations_turn(
+        {
+            "user_id": "user_memory_delete",
+            "conversation_id": "conv_memory_delete_follow_up",
+            "message": "我想明天下午3点约肩颈放松",
+        }
+    )
+
+    assert pending_delete["confirmation_required"] is True
+    assert pending_delete["confirmation_request"]["tool_name"] == "delete_customer_memory"
+    assert result["confirmation_required"] is False
+    assert any(
+        tool_result.get("tool_name") == "delete_customer_memory" and tool_result.get("success")
+        for tool_result in result["tool_results"]
+    )
+    assert follow_up["customer_context"]["known_preferences"] == []
+    assert follow_up["confirmation_request"]["summary"]["special_requests"] == "无"
+
+
+def test_conflicting_memory_write_does_not_claim_saved():
+    reset_customer_memory_store()
+    pending_quiet = run_operations_turn(
+        {
+            "user_id": "user_memory_conflict",
+            "conversation_id": "conv_memory_conflict",
+            "message": "我以后都喜欢安静一点的房间",
+        }
+    )
+    run_operations_turn(
+        {
+            "user_id": "user_memory_conflict",
+            "conversation_id": "conv_memory_conflict",
+            "message": "确认",
+            "confirmed_tool_name": pending_quiet["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending_quiet["confirmation_request"]["arguments"],
+            "confirmation_token": pending_quiet["confirmation_request"]["confirmation_token"],
+        }
+    )
+    pending_lively = run_operations_turn(
+        {
+            "user_id": "user_memory_conflict",
+            "conversation_id": "conv_memory_conflict",
+            "message": "我喜欢热闹一点的房间",
+        }
+    )
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_memory_conflict",
+            "conversation_id": "conv_memory_conflict",
+            "message": "确认",
+            "confirmed_tool_name": pending_lively["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending_lively["confirmation_request"]["arguments"],
+            "confirmation_token": pending_lively["confirmation_request"]["confirmation_token"],
+        }
+    )
+
+    memory_result = next(
+        tool_result
+        for tool_result in result["tool_results"]
+        if tool_result["tool_name"] == "write_customer_preference"
+    )
+    assert memory_result["output"]["status"] == "conflict"
+    assert "冲突" in result["reply"]
+    assert "已保存" not in result["reply"]
+
+
 def test_sensitive_memory_proposal_requires_confirmation():
     result = run_operations_turn(
         {

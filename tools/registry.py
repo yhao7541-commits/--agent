@@ -9,7 +9,7 @@ from .booking_tools import (
     reschedule_booking,
     search_services,
 )
-from .customer_tools import lookup_customer_profile, write_customer_preference
+from .customer_tools import delete_customer_memory, lookup_customer_profile, write_customer_preference
 from .escalation_tools import escalate_to_human
 from .knowledge_tools import search_knowledge_base
 from .schemas import (
@@ -20,6 +20,8 @@ from .schemas import (
     CreateBookingInput,
     CustomerPreferenceInput,
     CustomerPreferenceOutput,
+    CustomerMemoryDeleteInput,
+    CustomerMemoryDeleteOutput,
     FindAvailableStaffInput,
     FindAvailableStaffOutput,
     HumanEscalationInput,
@@ -141,6 +143,17 @@ def build_default_tool_registry() -> ToolRegistry:
             input_schema=CustomerPreferenceInput,
             output_schema=CustomerPreferenceOutput,
             handler=write_customer_preference,
+        )
+    )
+    registry.register(
+        ToolDefinition(
+            name="delete_customer_memory",
+            description="Delete a stored customer memory.",
+            permission=ToolPermission.SENSITIVE,
+            requires_confirmation=True,
+            input_schema=CustomerMemoryDeleteInput,
+            output_schema=CustomerMemoryDeleteOutput,
+            handler=delete_customer_memory,
         )
     )
     registry.register(

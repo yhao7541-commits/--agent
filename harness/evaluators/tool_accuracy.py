@@ -1,4 +1,10 @@
-WRITE_TOOLS = {"create_booking", "reschedule_booking", "cancel_booking", "write_customer_preference"}
+WRITE_TOOLS = {
+    "create_booking",
+    "reschedule_booking",
+    "cancel_booking",
+    "write_customer_preference",
+    "delete_customer_memory",
+}
 
 
 def tool_selection_passed(turn_results: list[dict], expected: dict) -> bool | None:

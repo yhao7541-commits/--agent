@@ -214,6 +214,49 @@ def test_lookup_customer_profile_returns_stored_preferences():
     assert "喜欢安静房间" in result.output["known_preferences"]
 
 
+def test_confirmed_customer_memory_delete_removes_stored_preference():
+    reset_customer_memory_store()
+    gateway = ToolGateway(build_default_tool_registry())
+    context = ToolExecutionContext(
+        user_id="user_001",
+        conversation_id="conv_001",
+        trace_id="trace_001",
+        confirmed_tools={"write_customer_preference"},
+    )
+    write_result = gateway.execute(
+        "write_customer_preference",
+        {
+            "user_id": "user_001",
+            "preference_type": "preference",
+            "preference_value": "喜欢安静房间",
+            "evidence": "我以后都喜欢安静一点的房间",
+        },
+        context,
+    )
+
+    unconfirmed_delete = gateway.execute(
+        "delete_customer_memory",
+        {"user_id": "user_001", "memory_id": write_result.output["memory_id"]},
+        context,
+    )
+    confirmed_context = context.model_copy(
+        update={"confirmed_tools": {"delete_customer_memory"}}
+    )
+    delete_result = gateway.execute(
+        "delete_customer_memory",
+        {"user_id": "user_001", "memory_id": write_result.output["memory_id"]},
+        confirmed_context,
+    )
+    profile = gateway.execute("lookup_customer_profile", {"user_id": "user_001"}, context)
+
+    assert unconfirmed_delete.success is False
+    assert unconfirmed_delete.confirmation_required is True
+    assert delete_result.success is True
+    assert delete_result.output["status"] == "deleted"
+    assert profile.output["known_preferences"] == []
+    assert any(event["event_type"] == "memory_deleted" for event in confirmed_context.trace_events)
+
+
 def test_read_tool_executes_without_confirmation_and_traces():
     gateway = ToolGateway(build_default_tool_registry())
     context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")

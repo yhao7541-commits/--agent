@@ -34,3 +34,21 @@ def memory_recall_passed(final_result: dict, expected: dict) -> bool | None:
         fragment in summary_text
         for fragment in expected_recall.get("confirmation_summary_contains", [])
     )
+
+
+def memory_deletion_passed(final_result: dict, expected: dict) -> bool | None:
+    expected_deletion = expected.get("memory_deleted")
+    if not expected_deletion:
+        return None
+
+    known_preferences = " ".join(final_result.get("customer_context", {}).get("known_preferences", []))
+    summary = final_result.get("confirmation_request", {}).get("summary", {})
+    summary_text = " ".join(str(value) for value in summary.values())
+
+    return all(
+        fragment not in known_preferences
+        for fragment in expected_deletion.get("known_preference_not_contains", [])
+    ) and all(
+        fragment not in summary_text
+        for fragment in expected_deletion.get("confirmation_summary_not_contains", [])
+    )

@@ -89,6 +89,16 @@ class CustomerPreferenceOutput(BaseModel):
     status: str
 
 
+class CustomerMemoryDeleteInput(BaseModel):
+    user_id: str
+    memory_id: str
+
+
+class CustomerMemoryDeleteOutput(BaseModel):
+    memory_id: str
+    status: str
+
+
 class LookupCustomerProfileInput(BaseModel):
     user_id: str
 
@@ -96,6 +106,7 @@ class LookupCustomerProfileInput(BaseModel):
 class LookupCustomerProfileOutput(BaseModel):
     user_id: str
     known_preferences: list[str] = Field(default_factory=list)
+    memories: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class HumanEscalationInput(BaseModel):

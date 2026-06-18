@@ -11,7 +11,7 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 120
+    assert len(cases) >= 121
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
@@ -57,6 +57,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "memory_no_preference_question_001" in case_ids
     assert "memory_recall_strength_001" in case_ids
     assert "memory_quiet_every_time_003" in case_ids
+    assert "memory_delete_quiet_room_001" in case_ids
     assert "security_direct_execute_001" in case_ids
     assert "security_ignore_previous_english_002" in case_ids
     assert "escalation_staff_complaint_001" in case_ids
@@ -89,6 +90,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["rag_groundedness"] >= 0.85
     assert report["metrics"]["memory_suppression_accuracy"] >= 0.90
     assert report["metrics"]["memory_recall_accuracy"] >= 0.80
+    assert report["metrics"]["memory_delete_accuracy"] >= 0.80
     assert report["metrics"]["escalation_reason_accuracy"] >= 0.90
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
