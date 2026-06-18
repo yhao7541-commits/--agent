@@ -65,6 +65,18 @@
         new_time_window: "15:00"
     rag_used: false
 
+- id: booking_reject_001
+  suite: booking
+  user_id: eval_booking_010
+  turns:
+    - user: "我想明天下午3点约肩颈放松"
+    - user: "不用了"
+      confirmation_decision: rejected
+  expected:
+    intent: confirmation_rejected
+    booking_completed: false
+    rag_used: false
+
 - id: booking_fuzzy_time_001
   suite: booking
   user_id: eval_booking_005

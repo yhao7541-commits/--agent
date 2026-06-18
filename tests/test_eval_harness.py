@@ -13,6 +13,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
+    assert "booking_reject_001" in case_ids
     assert "booking_fuzzy_time_001" in case_ids
     assert "booking_staff_unavailable_001" in case_ids
     assert "booking_time_conflict_001" in case_ids
@@ -39,6 +40,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90
     assert all(case["latency_ms"] >= 0 for case in report["cases"])
+    assert all(case["passed"] for case in report["cases"])
     assert report["passed"] is True
 
 

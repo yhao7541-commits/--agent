@@ -85,11 +85,14 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
             "conversation_id": case["id"],
             "message": turn["user"],
         }
+        rejected_turn = turn.get("confirmation_decision") == "rejected" and pending_confirmation is not None
         confirmed_turn = turn["user"] == "确认" and pending_confirmation is not None
-        if confirmed_turn:
+        if confirmed_turn or rejected_turn:
             state["confirmed_tool_name"] = pending_confirmation["tool_name"]
             state["confirmed_tool_arguments"] = pending_confirmation["arguments"]
             state["confirmation_token"] = pending_confirmation["confirmation_token"]
+        if rejected_turn:
+            state["confirmation_decision"] = "rejected"
 
         result = run_operations_turn(state)
         result["_turn_index"] = index
