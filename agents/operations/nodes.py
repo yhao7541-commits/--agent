@@ -227,7 +227,10 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     elif "今天" in message:
         slots["date"] = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d")
 
-    time_match = re.search(r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点", message)
+    time_match = re.search(
+        r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(?![的儿也])",
+        message,
+    )
     if time_match:
         slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
     elif "上午" in message:

@@ -54,3 +54,27 @@
       - search_knowledge_base
     rag_used: true
     grounded: true
+
+- id: rag_cancellation_policy_001
+  suite: rag
+  user_id: eval_rag_006
+  turns:
+    - user: "服务政策有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_detail_001
+  suite: rag
+  user_id: eval_rag_007
+  turns:
+    - user: "肩颈放松服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true

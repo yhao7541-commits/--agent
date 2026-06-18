@@ -11,3 +11,17 @@
       - create_booking
       - write_customer_preference
     rag_used: true
+
+- id: tool_pricing_001
+  suite: tool_routing
+  user_id: eval_tool_002
+  turns:
+    - user: "推拿多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - create_booking
+      - write_customer_preference
+    rag_used: true
