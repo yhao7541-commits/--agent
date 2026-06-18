@@ -516,6 +516,27 @@ def generate_response(state: OperationsAgentState) -> OperationsAgentState:
     return append_trace(state, "generate_response", {"reply_length": len(state["reply"])})
 
 
+def output_policy_check(state: OperationsAgentState) -> OperationsAgentState:
+    if "预约已创建" in state.get("reply", "") and not _successful_tool_result(state, "create_booking"):
+        error = {
+            "type": "false_booking_success",
+            "message": "Reply claimed booking creation without a successful create_booking tool result.",
+        }
+        errors = list(state.get("errors", []))
+        errors.append(error)
+        state["errors"] = errors
+        state["reply"] = "我还不能确认预约已经创建；请等待确认操作完成或由工作人员核实。"
+        return append_trace(
+            state,
+            "output_policy_check",
+            {"status": "blocked", "reason": error["type"]},
+            event_type="policy_violation",
+            error=error,
+        )
+
+    return append_trace(state, "output_policy_check", {"status": "ok"})
+
+
 def finalize_turn(state: OperationsAgentState) -> OperationsAgentState:
     return append_trace(
         state,

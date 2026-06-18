@@ -8,6 +8,7 @@ from .nodes import (
     generate_response,
     initialize_turn,
     load_customer_context,
+    output_policy_check,
     plan_tool_calls,
     propose_memory_writes,
 )
@@ -24,6 +25,7 @@ def build_operations_graph():
     workflow.add_node("plan_tool_calls", plan_tool_calls)
     workflow.add_node("execute_tools", execute_tools)
     workflow.add_node("generate_response", generate_response)
+    workflow.add_node("output_policy_check", output_policy_check)
     workflow.add_node("finalize_turn", finalize_turn)
 
     workflow.set_entry_point("initialize_turn")
@@ -34,7 +36,8 @@ def build_operations_graph():
     workflow.add_edge("propose_memory_writes", "plan_tool_calls")
     workflow.add_edge("plan_tool_calls", "execute_tools")
     workflow.add_edge("execute_tools", "generate_response")
-    workflow.add_edge("generate_response", "finalize_turn")
+    workflow.add_edge("generate_response", "output_policy_check")
+    workflow.add_edge("output_policy_check", "finalize_turn")
     workflow.add_edge("finalize_turn", END)
     return workflow.compile()
 

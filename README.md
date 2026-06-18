@@ -86,7 +86,7 @@ python -m harness.runners.run_all --smoke
 - **RAG 知识咨询**：使用 FAISS 向量索引检索知识库内容，结合大模型生成自然语言回答，支持流式输出。
 - **智能预约管理**：根据用户需求、员工专长、历史偏好和可用时间进行匹配，辅助完成预约确认。
 - **受控工具调用**：新增 Tool Governance Gateway，对 read、write、external、sensitive 工具进行 schema 校验、确认拦截和 trace 记录。
-- **状态化 Operations Runtime**：新增 LangGraph graph skeleton，把意图判断、槽位提取、工具计划、确认请求、响应生成和 trace 写入建模为显式节点。
+- **状态化 Operations Runtime**：新增 LangGraph graph skeleton，把意图判断、槽位提取、工具计划、确认请求、响应生成、输出策略检查和 trace 写入建模为显式节点。
 - **用户行为分析**：记录用户交互与预约行为，分析偏好模式，并用于后续推荐和个性化反馈。
 - **个性化提醒**：在预约完成后，可结合实时天气等外部信息生成更贴近实际场景的提醒。
 - **Embedding 缓存优化**：通过数据库缓存和文件缓存减少重复向量计算，提高知识检索性能。

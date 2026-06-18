@@ -23,6 +23,7 @@ The important engineering boundary is that the graph plans work, the gateway gov
 - `plan_tool_calls`
 - `execute_tools`
 - `generate_response`
+- `output_policy_check`
 - `finalize_turn`
 
-This keeps intent, slot filling, memory proposals, tool planning, confirmation, response generation, and trace finalization visible and testable.
+This keeps intent, slot filling, memory proposals, tool planning, confirmation, response policy checks, and trace finalization visible and testable.

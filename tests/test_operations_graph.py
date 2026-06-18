@@ -1,10 +1,45 @@
 from agents.operations.graph import build_operations_graph, run_operations_turn
+from agents.operations.nodes import output_policy_check
 
 
 def test_operations_graph_compiles():
     graph = build_operations_graph()
 
     assert graph is not None
+
+
+def test_output_policy_check_runs_before_finalize():
+    result = run_operations_turn(
+        {
+            "user_id": "user_policy_001",
+            "conversation_id": "conv_policy_001",
+            "message": "我想约一个肩颈放松",
+        }
+    )
+
+    nodes = [event["node"] for event in result["trace_events"]]
+
+    assert "output_policy_check" in nodes
+    assert nodes.index("generate_response") < nodes.index("output_policy_check")
+    assert nodes.index("output_policy_check") < nodes.index("finalize_turn")
+
+
+def test_output_policy_check_blocks_false_booking_success_reply():
+    result = output_policy_check(
+        {
+            "trace_id": "trace_policy_001",
+            "conversation_id": "conv_policy_002",
+            "reply": "预约已创建，预约编号：booking_fake。",
+            "tool_results": [],
+            "errors": [],
+            "trace_events": [],
+        }
+    )
+
+    assert "预约已创建" not in result["reply"]
+    assert result["errors"][-1]["type"] == "false_booking_success"
+    assert result["trace_events"][-1]["node"] == "output_policy_check"
+    assert result["trace_events"][-1]["event_type"] == "policy_violation"
 
 
 def test_incomplete_booking_asks_follow_up_without_create_booking():
