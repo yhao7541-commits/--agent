@@ -38,7 +38,8 @@ def write_customer_preference(arguments: BaseModel, context) -> dict:
 
 
 def lookup_customer_profile(arguments: BaseModel, context) -> dict:
+    user_id = getattr(arguments, "user_id", context.user_id)
     return {
-        "user_id": getattr(arguments, "user_id", context.user_id),
-        "known_preferences": [],
+        "user_id": user_id,
+        "known_preferences": [memory.content for memory in _memory_store.list_user_memories(user_id)],
     }
