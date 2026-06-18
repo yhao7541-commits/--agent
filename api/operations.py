@@ -1,12 +1,16 @@
 from typing import Any
+import os
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from agents.operations.graph import run_operations_turn
+from observability.trace_schema import TraceEvent
+from observability.trace_store import JsonlTraceStore
 
 
 router = APIRouter(prefix="/api/operations", tags=["Operations Agent"])
+TRACE_STORE_PATH_ENV = "OPERATIONS_TRACE_STORE_PATH"
 
 
 class OperationsChatRequest(BaseModel):
@@ -38,6 +42,7 @@ class OperationsChatResponse(BaseModel):
 @router.post("/chat", response_model=OperationsChatResponse)
 async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
     result = run_operations_turn(request.model_dump())
+    _persist_trace_events(result)
     return OperationsChatResponse(
         reply=result.get("reply", ""),
         intent=result.get("intent", "unknown"),
@@ -52,3 +57,16 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         rag_used=result.get("rag_used", False),
         escalated=result.get("escalated", False),
     )
+
+
+def _persist_trace_events(result: dict[str, Any]) -> None:
+    trace_store_path = os.getenv(TRACE_STORE_PATH_ENV)
+    if not trace_store_path:
+        return
+
+    store = JsonlTraceStore(trace_store_path)
+    try:
+        for event_data in result.get("trace_events", []):
+            store.append(TraceEvent.model_validate(event_data))
+    except Exception:
+        return

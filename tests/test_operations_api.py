@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.operations import router
+from observability.trace_store import JsonlTraceStore
 
 
 def make_client():
@@ -27,6 +28,29 @@ def test_operations_chat_returns_trace_id():
     assert body["trace_id"]
     assert "reply" in body
     assert "raw_prompt" not in body
+
+
+def test_operations_chat_persists_trace_events_when_store_is_configured(tmp_path, monkeypatch):
+    trace_path = tmp_path / "operations-traces.jsonl"
+    monkeypatch.setenv("OPERATIONS_TRACE_STORE_PATH", str(trace_path))
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_trace",
+            "conversation_id": "conv_trace",
+            "message": "你好",
+        },
+    )
+
+    assert response.status_code == 200
+    trace_id = response.json()["trace_id"]
+    events = JsonlTraceStore(trace_path).read_trace(trace_id)
+    nodes = [event.node for event in events]
+    assert "initialize_turn" in nodes
+    assert "finalize_turn" in nodes
+    assert all(event.conversation_id == "conv_trace" for event in events)
 
 
 def test_operations_chat_returns_confirmation_request_for_write_action():

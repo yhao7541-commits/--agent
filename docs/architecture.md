@@ -13,6 +13,12 @@ Client
 
 The important engineering boundary is that the graph plans work, the gateway governs tool execution, and observability records what happened. Existing service and database layers remain in place for the legacy application surface.
 
+Set `OPERATIONS_TRACE_STORE_PATH` to persist `/api/operations/chat` trace events to JSONL. The replay CLI can then inspect a historical run:
+
+```bash
+python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
+```
+
 ## Runtime Nodes
 
 - `initialize_turn`

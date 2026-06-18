@@ -38,7 +38,12 @@ User -> LangGraph Runtime -> Tool Gateway -> Booking/Knowledge/Memory Tools -> T
 
 ### Trace replay
 
-每轮 operations chat 都生成 node-level 和 tool-level trace events。`observability/trace_store.py` 提供 JSONL store，`observability/replay.py` 可以按顺序输出节点摘要，用于复现工具调用、确认拦截、RAG 检索和人工升级。
+每轮 operations chat 都生成 node-level 和 tool-level trace events。`observability/trace_store.py` 提供 JSONL store，`observability/replay.py` 可以按顺序输出节点摘要，用于复现工具调用、确认拦截、RAG 检索和人工升级。API 在设置 `OPERATIONS_TRACE_STORE_PATH` 后会把本次运行写入 JSONL：
+
+```powershell
+$env:OPERATIONS_TRACE_STORE_PATH="data/traces.jsonl"
+python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
+```
 
 ## Evaluation Results
 
