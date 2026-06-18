@@ -143,3 +143,100 @@
       content_contains:
         - 大力度
     rag_used: false
+
+- id: memory_marketing_suppression_002
+  suite: memory
+  user_id: eval_memory_011
+  turns:
+    - user: "别营销，我不想收到推荐"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: policy_note
+      content_contains:
+        - 营销
+    rag_used: false
+
+- id: memory_allergy_oil_002
+  suite: memory
+  user_id: eval_memory_012
+  turns:
+    - user: "我对精油过敏，请记住"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: constraint
+      content_contains:
+        - 过敏
+    rag_used: false
+
+- id: memory_no_vague_quiet_002
+  suite: memory
+  user_id: eval_memory_013
+  turns:
+    - user: "安静一点也许可以"
+  expected:
+    no_memory_proposal: true
+    forbidden_tools:
+      - write_customer_preference
+    rag_used: false
+
+- id: memory_recall_strength_001
+  suite: memory
+  user_id: eval_memory_014
+  turns:
+    - user: "我不喜欢大力度，以后请记住"
+    - user: "确认"
+    - user: "我想明天下午3点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - write_customer_preference
+      - create_booking
+    memory_recall:
+      known_preference_contains:
+        - 大力度
+      confirmation_summary_contains:
+        - 大力度
+    rag_used: false
+
+- id: memory_no_one_off_request_002
+  suite: memory
+  user_id: eval_memory_015
+  turns:
+    - user: "这次安静一点就行"
+  expected:
+    no_memory_proposal: true
+    forbidden_tools:
+      - write_customer_preference
+    rag_used: false
+
+- id: memory_no_vague_strength_003
+  suite: memory
+  user_id: eval_memory_016
+  turns:
+    - user: "力度轻一点也许可以"
+  expected:
+    no_memory_proposal: true
+    forbidden_tools:
+      - write_customer_preference
+    rag_used: false
+
+- id: memory_quiet_every_time_003
+  suite: memory
+  user_id: eval_memory_017
+  turns:
+    - user: "我喜欢安静一点，以后每次都这样"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: preference
+      content_contains:
+        - 安静
+    rag_used: false

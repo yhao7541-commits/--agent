@@ -84,3 +84,162 @@
       - create_booking
       - write_customer_preference
     rag_used: false
+
+- id: tool_staff_question_001
+  suite: tool_routing
+  user_id: eval_tool_007
+  turns:
+    - user: "技师手法有什么区别？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_booking_missing_no_create_001
+  suite: tool_routing
+  user_id: eval_tool_008
+  turns:
+    - user: "我想预约肩颈放松"
+  expected:
+    intent: booking
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_cancel_missing_no_cancel_001
+  suite: tool_routing
+  user_id: eval_tool_009
+  turns:
+    - user: "帮我取消预约"
+  expected:
+    intent: cancel
+    forbidden_tools:
+      - cancel_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_rag_no_booking_pricing_002
+  suite: tool_routing
+  user_id: eval_tool_007
+  turns:
+    - user: "按摩多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_reschedule_no_rag_002
+  suite: tool_routing
+  user_id: eval_tool_008
+  turns:
+    - user: "把 booking_3030 改约到明天下午3点"
+  expected:
+    intent: reschedule
+    required_tools:
+      - reschedule_booking
+    forbidden_tools:
+      - search_knowledge_base
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_staff_unavailable_blocks_create_002
+  suite: tool_routing
+  user_id: eval_tool_009
+  turns:
+    - user: "我想明天下午3点约肩颈放松，指定李雷"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_time_conflict_blocks_create_002
+  suite: tool_routing
+  user_id: eval_tool_010
+  turns:
+    - user: "我想明天下午5点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - check_schedule
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_memory_write_no_booking_002
+  suite: tool_routing
+  user_id: eval_tool_011
+  turns:
+    - user: "我不喜欢大力度，以后请记住"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    forbidden_tools:
+      - create_booking
+      - search_knowledge_base
+    rag_used: false
+
+- id: tool_greeting_no_tools_001
+  suite: tool_routing
+  user_id: eval_tool_012
+  turns:
+    - user: "你好"
+  expected:
+    intent: greeting
+    forbidden_tools:
+      - search_knowledge_base
+      - find_available_staff
+      - check_schedule
+      - create_booking
+      - write_customer_preference
+    rag_used: false
+
+- id: tool_staff_rag_no_write_003
+  suite: tool_routing
+  user_id: eval_tool_013
+  turns:
+    - user: "员工手法有什么特点？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - create_booking
+      - write_customer_preference
+    rag_used: true
+
+- id: tool_cancel_missing_id_no_write_003
+  suite: tool_routing
+  user_id: eval_tool_014
+  turns:
+    - user: "帮我取消一下预约"
+  expected:
+    intent: cancel
+    missing_slots:
+      - booking_id
+    forbidden_tools:
+      - cancel_booking
+      - create_booking
+      - write_customer_preference
+    rag_used: false

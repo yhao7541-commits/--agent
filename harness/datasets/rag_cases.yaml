@@ -150,3 +150,111 @@
       - search_knowledge_base
     rag_used: true
     grounded: true
+
+- id: rag_late_fifteen_001
+  suite: rag
+  user_id: eval_rag_014
+  turns:
+    - user: "迟到十五分钟怎么处理？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_massage_attention_001
+  suite: rag
+  user_id: eval_rag_015
+  turns:
+    - user: "按摩服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_safety_not_suitable_001
+  suite: rag
+  user_id: eval_rag_016
+  turns:
+    - user: "哪些人不适合做服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_select_003
+  suite: rag
+  user_id: eval_rag_017
+  turns:
+    - user: "员工和技师手法怎么选？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_selection_003
+  suite: rag
+  user_id: eval_rag_014
+  turns:
+    - user: "服务项目怎么选？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_specialty_003
+  suite: rag
+  user_id: eval_rag_015
+  turns:
+    - user: "员工有什么专长？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_shoulder_sedentary_003
+  suite: rag
+  user_id: eval_rag_016
+  turns:
+    - user: "肩颈放松适合久坐的人吗？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_price_amount_003
+  suite: rag
+  user_id: eval_rag_017
+  turns:
+    - user: "价格多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_late_policy_003
+  suite: rag
+  user_id: eval_rag_018
+  turns:
+    - user: "迟到政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true

@@ -463,3 +463,216 @@
     forbidden_tools:
       - create_booking
     rag_used: false
+
+- id: booking_today_shoulder_morning_002
+  suite: booking
+  user_id: eval_booking_030
+  turns:
+    - user: "我想今天上午9点约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "09:00"
+    rag_used: false
+
+- id: booking_tomorrow_massage_evening_specific_001
+  suite: booking
+  user_id: eval_booking_031
+  turns:
+    - user: "我想明天晚上8点约按摩"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 按摩
+      time_window: "20:00"
+    rag_used: false
+
+- id: booking_quiet_specific_time_001
+  suite: booking
+  user_id: eval_booking_032
+  turns:
+    - user: "今天下午3点约肩颈放松，安排安静一点"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "15:00"
+      special_requests: 安静一点的房间
+    rag_used: false
+
+- id: booking_staff_li_lei_morning_001
+  suite: booking
+  user_id: eval_booking_033
+  turns:
+    - user: "明天上午9点约推拿，指定李雷"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+    booking_slots:
+      service_type: 推拿
+      preferred_staff: 李雷
+      time_window: "09:00"
+    forbidden_tools:
+      - create_booking
+    rag_used: false
+
+- id: booking_cancel_underscore_id_001
+  suite: booking
+  user_id: eval_booking_034
+  turns:
+    - user: "帮我取消 booking_2026_06"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    booking_slots:
+      booking_id: booking_2026_06
+    tool_arguments:
+      cancel_booking:
+        booking_id: booking_2026_06
+    rag_used: false
+
+- id: booking_reschedule_today_evening_001
+  suite: booking
+  user_id: eval_booking_035
+  turns:
+    - user: "把 booking_1357 改约到今天晚上8点"
+  expected:
+    intent: reschedule
+    required_tools:
+      - reschedule_booking
+    booking_slots:
+      booking_id: booking_1357
+      new_time_window: "20:00"
+    tool_arguments:
+      reschedule_booking:
+        booking_id: booking_1357
+        new_time_window: "20:00"
+    rag_used: false
+
+- id: booking_reschedule_missing_time_001
+  suite: booking
+  user_id: eval_booking_036
+  turns:
+    - user: "把 booking_1357 改约到明天"
+  expected:
+    intent: reschedule
+    missing_slots:
+      - new_time_window
+    booking_slots:
+      booking_id: booking_1357
+    forbidden_tools:
+      - reschedule_booking
+    rag_used: false
+
+- id: booking_morning_10_002
+  suite: booking
+  user_id: eval_booking_030
+  turns:
+    - user: "我想明天上午10点约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "10:00"
+    rag_used: false
+
+- id: booking_evening_8_push_002
+  suite: booking
+  user_id: eval_booking_031
+  turns:
+    - user: "我想今天晚上8点约推拿"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 推拿
+      time_window: "20:00"
+    rag_used: false
+
+- id: booking_missing_date_push_002
+  suite: booking
+  user_id: eval_booking_032
+  turns:
+    - user: "我想下午3点约推拿"
+  expected:
+    intent: booking
+    missing_slots:
+      - date
+    booking_slots:
+      service_type: 推拿
+      time_window: "15:00"
+    forbidden_tools:
+      - create_booking
+    rag_used: false
+
+- id: booking_special_request_duration_001
+  suite: booking
+  user_id: eval_booking_033
+  turns:
+    - user: "我想明天下午约肩颈放松，安静一点，90分钟"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "12:00-18:00"
+      duration: 90分钟
+      special_requests: 安静一点的房间
+    rag_used: false
+
+- id: booking_cancel_numeric_id_002
+  suite: booking
+  user_id: eval_booking_034
+  turns:
+    - user: "请取消 booking_20260618"
+  expected:
+    intent: cancel
+    required_tools:
+      - cancel_booking
+    booking_slots:
+      booking_id: booking_20260618
+    tool_arguments:
+      cancel_booking:
+        booking_id: booking_20260618
+    rag_used: false
+
+- id: booking_today_afternoon_range_001
+  suite: booking
+  user_id: eval_booking_035
+  turns:
+    - user: "我想今天下午约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "12:00-18:00"
+    rag_used: false

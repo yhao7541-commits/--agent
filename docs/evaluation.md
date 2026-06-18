@@ -50,4 +50,4 @@ Latest local smoke result:
 | `security_policy_accuracy` | 1.00 | 0.90 |
 | `p95_latency_ms` | reported | n/a |
 
-The current smoke suite has 71 cases and all metrics pass their initial thresholds. The next scale-up step is expanding datasets toward the planned 150+ cases.
+The current smoke suite has 120 cases and all metrics pass their initial thresholds. The next scale-up step is expanding datasets toward the planned 150+ cases.

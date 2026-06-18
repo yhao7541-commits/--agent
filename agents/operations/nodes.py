@@ -240,10 +240,7 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
     elif "今天" in message:
         slots["date"] = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d")
 
-    time_match = re.search(
-        r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(?![的儿也])",
-        message,
-    )
+    time_match = _select_time_match(message)
     if time_match:
         slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
     elif "上午" in message:
@@ -258,9 +255,21 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         slots["duration"] = f"{duration_match.group(1)}分钟"
 
     if "安静" in message:
-        slots["special_requests"] = "安静一点的房间"
-    elif any("安静" in preference for preference in state.get("customer_context", {}).get("known_preferences", [])):
-        slots["special_requests"] = "安静一点的房间"
+        slots["special_requests"] = _merge_special_request(
+            slots.get("special_requests"),
+            "安静一点的房间",
+        )
+    for preference in state.get("customer_context", {}).get("known_preferences", []):
+        if "安静" in preference:
+            slots["special_requests"] = _merge_special_request(
+                slots.get("special_requests"),
+                "安静一点的房间",
+            )
+        if "大力度" in preference:
+            slots["special_requests"] = _merge_special_request(
+                slots.get("special_requests"),
+                "避免大力度",
+            )
     if "李雷" in message:
         slots["preferred_staff"] = "李雷"
 
@@ -582,6 +591,38 @@ def _normalize_hour(period: str | None, raw_hour: str) -> str:
     if period in {"下午", "晚上"} and hour < 12:
         hour += 12
     return f"{hour:02d}:00"
+
+
+def _select_time_match(message: str) -> re.Match[str] | None:
+    pattern = re.compile(r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(?![的儿也])")
+    for match in pattern.finditer(message):
+        if _is_contextual_time_match(message, match):
+            return match
+    return None
+
+
+def _is_contextual_time_match(message: str, match: re.Match[str]) -> bool:
+    period, raw_hour = match.group(1), match.group(2)
+    if period is not None or match.start() == 0:
+        return True
+
+    prefix = message[max(0, match.start() - 6) : match.start()]
+    suffix = message[match.end() : match.end() + 3]
+    has_time_context = any(
+        marker in prefix or marker in suffix
+        for marker in ("今天", "明天", "约", "预约", "改约", "到", "上午", "下午", "晚上")
+    )
+    if raw_hour in {"一", "1"} and not has_time_context:
+        return False
+    return has_time_context
+
+
+def _merge_special_request(existing: str | None, addition: str) -> str:
+    if not existing or existing == "无":
+        return addition
+    if addition in existing:
+        return existing
+    return f"{existing}；{addition}"
 
 
 def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict[str, Any] | None:

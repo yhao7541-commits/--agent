@@ -43,3 +43,73 @@
     escalation_reason: low_confidence
     required_tools:
       - escalate_to_human
+
+- id: escalation_refund_short_002
+  suite: escalation
+  user_id: eval_escalation_005
+  turns:
+    - user: "我要退款"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: refund_dispute
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_staff_service_bad_002
+  suite: escalation
+  user_id: eval_escalation_006
+  turns:
+    - user: "我要投诉员工服务很差"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: refund_dispute
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_medical_pain_002
+  suite: escalation
+  user_id: eval_escalation_007
+  turns:
+    - user: "按摩后很疼"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: medical_concern
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_low_confidence_003
+  suite: escalation
+  user_id: eval_escalation_008
+  turns:
+    - user: "那个事情就那样弄一下"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_complaint_refund_003
+  suite: escalation
+  user_id: eval_escalation_009
+  turns:
+    - user: "我要投诉服务很差并退款"
+  expected:
+    intent: escalation
+    escalated: true
+    escalation_reason: refund_dispute
+    required_tools:
+      - escalate_to_human
+
+- id: escalation_low_confidence_004
+  suite: escalation
+  user_id: eval_escalation_010
+  turns:
+    - user: "随便帮我搞定一下"
+  expected:
+    escalated: true
+    escalation_reason: low_confidence
+    required_tools:
+      - escalate_to_human
