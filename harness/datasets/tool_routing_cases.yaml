@@ -25,3 +25,17 @@
       - create_booking
       - write_customer_preference
     rag_used: true
+
+- id: tool_service_catalog_001
+  suite: tool_routing
+  user_id: eval_tool_003
+  turns:
+    - user: "有哪些项目？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    forbidden_tools:
+      - create_booking
+      - write_customer_preference
+    rag_used: true

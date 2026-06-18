@@ -78,3 +78,27 @@
       - search_knowledge_base
     rag_used: true
     grounded: true
+
+- id: rag_staff_specialty_001
+  suite: rag
+  user_id: eval_rag_008
+  turns:
+    - user: "员工手法有什么特点？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_safety_pregnancy_001
+  suite: rag
+  user_id: eval_rag_009
+  turns:
+    - user: "孕期适合做哪些服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true

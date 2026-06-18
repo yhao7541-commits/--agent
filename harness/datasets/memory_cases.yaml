@@ -83,3 +83,18 @@
       content_contains:
         - 安静
     rag_used: false
+
+- id: memory_lively_room_001
+  suite: memory
+  user_id: eval_memory_007
+  turns:
+    - user: "我喜欢热闹一点的房间"
+  expected:
+    intent: memory
+    required_tools:
+      - write_customer_preference
+    memory_proposal:
+      type: preference
+      content_contains:
+        - 热闹
+    rag_used: false

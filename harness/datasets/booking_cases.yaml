@@ -253,3 +253,66 @@
         booking_id: booking_8888
         new_time_window: "20:00"
     rag_used: false
+
+- id: booking_chinese_number_001
+  suite: booking
+  user_id: eval_booking_017
+  turns:
+    - user: "我想明天下午三点约肩颈放松"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 肩颈放松
+      time_window: "15:00"
+    rag_used: false
+
+- id: booking_today_morning_range_001
+  suite: booking
+  user_id: eval_booking_018
+  turns:
+    - user: "我想今天上午约推拿"
+  expected:
+    intent: booking
+    required_tools:
+      - find_available_staff
+      - check_schedule
+      - create_booking
+    booking_slots:
+      service_type: 推拿
+      time_window: "09:00-12:00"
+    rag_used: false
+
+- id: booking_cancel_polite_missing_id_001
+  suite: booking
+  user_id: eval_booking_019
+  turns:
+    - user: "麻烦帮我取消一下"
+  expected:
+    intent: cancel
+    missing_slots:
+      - booking_id
+    forbidden_tools:
+      - cancel_booking
+    rag_used: false
+
+- id: booking_reschedule_morning_001
+  suite: booking
+  user_id: eval_booking_020
+  turns:
+    - user: "把 booking_2468 改约到今天上午10点"
+  expected:
+    intent: reschedule
+    required_tools:
+      - reschedule_booking
+    booking_slots:
+      booking_id: booking_2468
+      new_time_window: "10:00"
+    tool_arguments:
+      reschedule_booking:
+        booking_id: booking_2468
+        new_time_window: "10:00"
+    rag_used: false

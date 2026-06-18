@@ -11,7 +11,7 @@ def test_eval_harness_loads_yaml_cases():
     case_ids = {case["id"] for case in cases}
 
     assert cases
-    assert len(cases) >= 40
+    assert len(cases) >= 50
     assert "booking_missing_date_001" in case_ids
     assert "booking_cancel_001" in case_ids
     assert "booking_reschedule_001" in case_ids
@@ -32,6 +32,16 @@ def test_eval_harness_loads_yaml_cases():
     assert "tool_pricing_001" in case_ids
     assert "memory_quiet_room_001" in case_ids
     assert "safety_complaint_001" in case_ids
+    assert "booking_chinese_number_001" in case_ids
+    assert "booking_today_morning_range_001" in case_ids
+    assert "booking_cancel_polite_missing_id_001" in case_ids
+    assert "booking_reschedule_morning_001" in case_ids
+    assert "rag_staff_specialty_001" in case_ids
+    assert "rag_safety_pregnancy_001" in case_ids
+    assert "tool_service_catalog_001" in case_ids
+    assert "memory_lively_room_001" in case_ids
+    assert "security_direct_execute_001" in case_ids
+    assert "escalation_staff_complaint_001" in case_ids
     assert "memory_sensitive_001" in case_ids
     assert "memory_negative_strength_001" in case_ids
     assert "memory_no_marketing_001" in case_ids

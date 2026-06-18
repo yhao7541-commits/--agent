@@ -20,7 +20,7 @@ from .state import OperationsAgentState
 
 
 BOOKING_KEYWORDS = ("约", "预约", "改约", "取消", "安排")
-CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意")
+CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意", "员工", "技师", "手法")
 MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生")
 REFUND_ESCALATION_KEYWORDS = ("退款", "投诉", "服务很差", "争议")
 MEMORY_KEYWORDS = ("喜欢", "不喜欢", "过敏", "不要营销", "别营销")
