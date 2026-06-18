@@ -1,6 +1,5 @@
 from .base import SessionManager
 from .repositories import TechnicianRepository, KnowledgeRepository, UserBehaviorRepository
-from typing import Optional
 
 
 class DatabaseRouter:

@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    env_file:
+      - .env.example
+    ports:
+      - "8000:8000"
+    volumes:
+      - wellness-data:/app/data
+
+volumes:
+  wellness-data:

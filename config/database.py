@@ -2,7 +2,6 @@
 数据库配置模块
 """
 import os
-from typing import Optional
 
 class DatabaseConfig:
     """数据库配置类"""

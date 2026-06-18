@@ -1,13 +1,17 @@
 # services/knowledge_service.py
 
 import numpy as np
-import faiss
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict
 from db.db_router import DatabaseRouter
 from .text_embedding import embed_input
 import logging
 
 logger = logging.getLogger(__name__)
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
 
 class KnowledgeService:
     """知识库服务类 - 结合数据库存储和向量检索"""
@@ -143,11 +147,14 @@ class KnowledgeService:
                     self.document_ids.append(doc['id'])
 
             if embeddings:
-                # 创建FAISS索引
                 embeddings_array = np.array(embeddings).astype('float32')
-                dimension = embeddings_array.shape[1]
-                self.index = faiss.IndexFlatIP(dimension)  # 内积相似度
-                self.index.add(embeddings_array)
+                if faiss is not None:
+                    # 创建FAISS索引
+                    dimension = embeddings_array.shape[1]
+                    self.index = faiss.IndexFlatIP(dimension)  # 内积相似度
+                    self.index.add(embeddings_array)
+                else:
+                    self.index = embeddings_array
                 logger.info(f"构建向量索引完成，包含 {len(embeddings)} 个向量")
             else:
                 logger.warning("没有有效的嵌入向量，无法构建索引")
@@ -167,8 +174,13 @@ class KnowledgeService:
             query_embedding = embed_input(query)
             query_array = np.array([query_embedding]).astype('float32')
             
-            # 向量搜索
-            scores, indices = self.index.search(query_array, min(top_k * 2, len(self.document_ids)))  # 多检索一些候选
+            if faiss is not None:
+                scores, indices = self.index.search(query_array, min(top_k * 2, len(self.document_ids)))  # 多检索一些候选
+            else:
+                fallback_scores = np.dot(self.index, query_array[0])
+                fallback_indices = np.argsort(fallback_scores)[::-1][: min(top_k * 2, len(self.document_ids))]
+                scores = np.array([fallback_scores[fallback_indices]])
+                indices = np.array([fallback_indices])
             
             results = []
             for score, idx in zip(scores[0], indices[0]):

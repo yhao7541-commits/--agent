@@ -1,5 +1,8 @@
 from contextlib import contextmanager
+from pathlib import Path
+
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker, scoped_session
 from ..models import Base
 
@@ -21,6 +24,7 @@ class SessionManager:
         Args:
             db_path: 数据库连接路径
         """
+        _ensure_sqlite_parent_dir(db_path)
         self.engine = create_engine(db_path)
         Base.metadata.create_all(self.engine)
         self.Session = scoped_session(sessionmaker(bind=self.engine))
@@ -49,3 +53,12 @@ class SessionManager:
         """关闭会话管理器"""
         self.Session.remove()
         self.engine.dispose()
+
+
+def _ensure_sqlite_parent_dir(db_path: str) -> None:
+    url = make_url(db_path)
+    if not url.drivername.startswith("sqlite"):
+        return
+    if not url.database or url.database == ":memory:":
+        return
+    Path(url.database).expanduser().parent.mkdir(parents=True, exist_ok=True)

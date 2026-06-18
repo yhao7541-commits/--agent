@@ -256,3 +256,18 @@ class PreferenceManager:
             self.logger.info("清除所有用户偏好")
         except Exception as e:
             self.logger.error(f"清除所有偏好失败: {str(e)}")
+
+    def save_preferences(self, user_id: str, preferences: Dict[str, Any]) -> None:
+        store = getattr(self, "memory_preferences", None)
+        if store is None:
+            self.memory_preferences = {}
+            store = self.memory_preferences
+        store[user_id] = dict(preferences)
+
+    def get_preferences(self, user_id: str) -> Dict[str, Any]:
+        return dict(getattr(self, "memory_preferences", {}).get(user_id, {}))
+
+    def update_preferences(self, user_id: str, preferences: Dict[str, Any]) -> None:
+        current = self.get_preferences(user_id)
+        current.update(preferences)
+        self.save_preferences(user_id, current)

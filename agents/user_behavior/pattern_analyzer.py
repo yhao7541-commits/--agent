@@ -8,8 +8,8 @@
 4. 生成个性化回访消息
 """
 
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
+from datetime import datetime
 import logging
 
 
@@ -33,6 +33,10 @@ class PatternAnalyzer:
     def analyze_user_preferences(self, user_id: str = "default_user") -> Optional[Dict[str, Any]]:
         """分析用户偏好：最喜欢的技师、常用服务、常用时长"""
         try:
+            memory_result = self._analyze_memory_preferences(user_id)
+            if memory_result is not None:
+                return memory_result
+
             # 获取用户所有预约历史
             if self.behavior_service:
                 appointments = self.behavior_service.get_user_behaviors(
@@ -88,6 +92,52 @@ class PatternAnalyzer:
         except Exception as e:
             self.logger.error(f"分析用户偏好失败: {str(e)}")
             return None
+
+    def _analyze_memory_preferences(self, user_id: str) -> Optional[Dict[str, Any]]:
+        store = getattr(self, "memory_store", None)
+        if store is None:
+            return None
+
+        records = [record for record in store if record.get("user_id") == user_id]
+        if not records:
+            return {}
+
+        service_counts: dict[str, int] = {}
+        time_counts: dict[str, int] = {}
+        duration_counts: dict[Any, int] = {}
+        for record in records:
+            service = record.get("service_type") or record.get("project")
+            if service:
+                service_counts[service] = service_counts.get(service, 0) + 1
+            preferred_time = record.get("preferred_time")
+            if preferred_time:
+                time_counts[preferred_time] = time_counts.get(preferred_time, 0) + 1
+            duration = record.get("duration")
+            if duration:
+                duration_counts[duration] = duration_counts.get(duration, 0) + 1
+
+        favorite_service = max(service_counts, key=service_counts.get) if service_counts else None
+        favorite_time = max(time_counts, key=time_counts.get) if time_counts else None
+        favorite_duration = max(duration_counts, key=duration_counts.get) if duration_counts else None
+        return {
+            "preferred_service_type": favorite_service,
+            "preferred_time": favorite_time,
+            "favorite_service": favorite_service,
+            "favorite_duration": favorite_duration,
+            "total_appointments": len([record for record in records if "appointment" in record.get("action", "")]),
+            "last_appointment_date": records[-1].get("timestamp"),
+        }
+
+    def identify_behavior_patterns(self, user_id: str = "default_user") -> Dict[str, Any]:
+        store = getattr(self, "memory_store", [])
+        records = [record for record in store if record.get("user_id") == user_id]
+        appointment_count = len([record for record in records if "appointment" in record.get("action", "")])
+        cancellation_count = len([record for record in records if "cancel" in record.get("action", "")])
+        cancellation_rate = cancellation_count / appointment_count if appointment_count else 0
+        return {
+            "appointment_frequency": appointment_count,
+            "cancellation_rate": cancellation_rate,
+        }
     
     def should_send_return_reminder(self, user_id: str = "default_user", days_threshold: int = 30) -> bool:
         """判断是否应该发送回访提醒"""

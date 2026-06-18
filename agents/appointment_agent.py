@@ -139,7 +139,7 @@ class AppointmentAgent:
             async for token in self.appointment_processor.handle_incomplete_info(data, self.appointment_history):
                 yield token
                 
-        except Exception as e:
+        except Exception:
             yield self.message_builder.create_parse_error_message()
 
     def _reset_state_after_appointment(self):

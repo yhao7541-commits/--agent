@@ -2,7 +2,6 @@
 知识库管理API
 """
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/knowledge", tags=["知识库管理"])
@@ -71,7 +70,10 @@ async def get_knowledge(knowledge_id: int):
 async def add_knowledge(item: KnowledgeItem):
     """添加新的知识条目"""
     try:
-        knowledge_service = await app.get_knowledge_service()
+        from services.knowledge_service import KnowledgeService
+        knowledge_service = KnowledgeService()
+        if not knowledge_service.initialized:
+            await knowledge_service.initialize()
         # 将问答组合成文档内容
         content = f"问题: {item.question}\n答案: {item.answer}"
         result = await knowledge_service.add_document(

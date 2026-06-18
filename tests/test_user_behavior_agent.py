@@ -8,7 +8,6 @@ UserBehaviorAgent 功能测试（简化版）
 """
 
 import pytest
-import asyncio
 from agents.user_behavior_agent import UserBehaviorAgent
 from datetime import datetime, timedelta
 

@@ -4,7 +4,7 @@
 负责协调整个咨询流程
 """
 
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator
 from .knowledge_retriever import KnowledgeRetriever
 from .consultation_classifier import ConsultationClassifier
 from .response_generator import ResponseGenerator

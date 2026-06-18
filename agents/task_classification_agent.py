@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from config.model_provider import create_chat_model
-from config.constants import SharedState, StateEnum
+from config.constants import SharedState
 from .task_classification import (
     TaskClassifier,
     StateManager,

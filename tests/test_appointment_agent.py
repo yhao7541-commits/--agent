@@ -9,7 +9,6 @@ AppointmentAgent 功能测试
 """
 
 import pytest
-import asyncio
 from agents.appointment_agent import AppointmentAgent
 
 
@@ -55,7 +54,7 @@ class TestAppointmentAgentCoreFeatures:
         assert "14:00" in start_time, f"时间应该转换为14:00格式，但得到：{start_time}"
         
         # 验证这不是无关请求
-        assert result["unrelated"] == False, "预约请求不应该被标记为无关"
+        assert not result["unrelated"], "预约请求不应该被标记为无关"
     
     def test_should_track_appointment_state_correctly(self):
         """
@@ -114,7 +113,7 @@ class TestAppointmentAgentCoreFeatures:
         result = agent.input_parser.parse_data(ai_content)
         
         # 应该被标记为无关请求
-        assert result.get("unrelated", False) == True, f"应该识别为无关请求，但得到：{result}"
+        assert result.get("unrelated", False), f"应该识别为无关请求，但得到：{result}"
     
     def test_should_complete_appointment_when_all_info_collected(self):
         """
@@ -140,7 +139,7 @@ class TestAppointmentAgentCoreFeatures:
         )
         
         # 应该标记为完成（这个测试可能会失败，需要检查完成逻辑）
-        assert finished == True, f"提供完整信息后应该完成预约，但finished={finished}"
+        assert finished, f"提供完整信息后应该完成预约，但finished={finished}"
         assert agent.appointment_history["start_time"] == "明天下午2点"
         assert agent.appointment_history["project"] == "按摩"
     
@@ -162,7 +161,7 @@ class TestAppointmentAgentCoreFeatures:
         )
         
         # 不应该完成预约
-        assert finished == False, "信息不完整时不应该完成预约"
+        assert not finished, "信息不完整时不应该完成预约"
         
         # 应该能处理不完整信息（不抛出异常）
         try:
@@ -191,7 +190,7 @@ class TestAppointmentAgentEdgeCases:
         
         # 测试空输入
         try:
-            result = agent.input_parser.parse_data("")
+            agent.input_parser.parse_data("")
             # 不应该崩溃，应该有某种处理方式
         except Exception as e:
             # 如果抛出异常，至少应该是可预期的异常类型
@@ -214,4 +213,4 @@ class TestAppointmentAgentEdgeCases:
         # 应该回到初始状态
         assert agent.appointment_history["project"] is None
         assert agent.appointment_history["start_time"] is None
-        assert agent.finished == False
+        assert not agent.finished

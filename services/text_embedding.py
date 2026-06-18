@@ -1,10 +1,14 @@
 # utils/embedding_matcher.py
 
 import numpy as np
-import faiss
 import os
 import pickle
 from config.model_provider import create_embedding_model
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
 
 
 def find_best_match_indices(text: str, candidates: list) -> list:
@@ -19,13 +23,17 @@ def find_best_match_indices(text: str, candidates: list) -> list:
         return []
     candidate_embs = [embed_input(c) for c in candidates]
     candidate_embs = np.array(candidate_embs).astype("float32")
-    dimension = candidate_embs.shape[1]
-    index = faiss.IndexFlatL2(dimension)
-    index.add(candidate_embs)
     text_emb = np.array([embed_input(text)]).astype("float32")
     k = len(candidates)
-    _, indices = index.search(text_emb, k)
-    return indices[0][:k].tolist()
+    if faiss is not None:
+        dimension = candidate_embs.shape[1]
+        index = faiss.IndexFlatL2(dimension)
+        index.add(candidate_embs)
+        _, indices = index.search(text_emb, k)
+        return indices[0][:k].tolist()
+
+    distances = np.linalg.norm(candidate_embs - text_emb, axis=1)
+    return np.argsort(distances)[:k].tolist()
 
 
 def embed_input(input_text: str, model: str = "text-embedding-ada-002",

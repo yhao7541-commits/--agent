@@ -1,0 +1,368 @@
+- id: rag_policy_001
+  suite: rag
+  user_id: eval_rag_001
+  turns:
+    - user: "如果我迟到20分钟会怎么样？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_greeting_001
+  suite: rag
+  user_id: eval_rag_002
+  turns:
+    - user: "你好"
+  expected:
+    intent: greeting
+    rag_used: false
+
+- id: rag_pricing_001
+  suite: rag
+  user_id: eval_rag_003
+  turns:
+    - user: "肩颈放松多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_services_001
+  suite: rag
+  user_id: eval_rag_004
+  turns:
+    - user: "有哪些服务项目？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_suitability_001
+  suite: rag
+  user_id: eval_rag_005
+  turns:
+    - user: "肩颈放松适合哪些人？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_cancellation_policy_001
+  suite: rag
+  user_id: eval_rag_006
+  turns:
+    - user: "服务政策有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_detail_001
+  suite: rag
+  user_id: eval_rag_007
+  turns:
+    - user: "肩颈放松服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_specialty_001
+  suite: rag
+  user_id: eval_rag_008
+  turns:
+    - user: "员工手法有什么特点？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_safety_pregnancy_001
+  suite: rag
+  user_id: eval_rag_009
+  turns:
+    - user: "孕期适合做哪些服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_pricing_policy_002
+  suite: rag
+  user_id: eval_rag_010
+  turns:
+    - user: "价格政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_late_arrival_002
+  suite: rag
+  user_id: eval_rag_011
+  turns:
+    - user: "迟到多久会影响服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_technique_002
+  suite: rag
+  user_id: eval_rag_012
+  turns:
+    - user: "技师手法有什么区别？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_notes_002
+  suite: rag
+  user_id: eval_rag_013
+  turns:
+    - user: "推拿服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_late_fifteen_001
+  suite: rag
+  user_id: eval_rag_014
+  turns:
+    - user: "迟到十五分钟怎么处理？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_massage_attention_001
+  suite: rag
+  user_id: eval_rag_015
+  turns:
+    - user: "按摩服务有什么注意事项？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_safety_not_suitable_001
+  suite: rag
+  user_id: eval_rag_016
+  turns:
+    - user: "哪些人不适合做服务？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_select_003
+  suite: rag
+  user_id: eval_rag_017
+  turns:
+    - user: "员工和技师手法怎么选？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_selection_003
+  suite: rag
+  user_id: eval_rag_014
+  turns:
+    - user: "服务项目怎么选？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_staff_specialty_003
+  suite: rag
+  user_id: eval_rag_015
+  turns:
+    - user: "员工有什么专长？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_shoulder_sedentary_003
+  suite: rag
+  user_id: eval_rag_016
+  turns:
+    - user: "肩颈放松适合久坐的人吗？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_price_amount_003
+  suite: rag
+  user_id: eval_rag_017
+  turns:
+    - user: "价格多少钱？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_late_policy_003
+  suite: rag
+  user_id: eval_rag_018
+  turns:
+    - user: "迟到政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_knowledge_gap_001
+  suite: rag
+  user_id: eval_rag_019
+  turns:
+    - user: "你们有没有火星移民按摩套餐政策？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: false
+
+- id: rag_cancel_policy_004
+  suite: rag
+  user_id: eval_rag_020
+  turns:
+    - user: "取消政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_employee_features_004
+  suite: rag
+  user_id: eval_rag_021
+  turns:
+    - user: "员工特点有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_service_suitability_004
+  suite: rag
+  user_id: eval_rag_022
+  turns:
+    - user: "服务适合哪些人？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_price_simple_004
+  suite: rag
+  user_id: eval_rag_023
+  turns:
+    - user: "价格是多少？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_attention_massage_004
+  suite: rag
+  user_id: eval_rag_024
+  turns:
+    - user: "服务注意事项有哪些？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_refund_policy_004
+  suite: rag
+  user_id: eval_rag_020
+  turns:
+    - user: "退款政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_cancellation_detail_004
+  suite: rag
+  user_id: eval_rag_021
+  turns:
+    - user: "取消政策是什么？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: true
+
+- id: rag_moon_policy_gap_004
+  suite: rag
+  user_id: eval_rag_022
+  turns:
+    - user: "你们有没有月球露营按摩政策？"
+  expected:
+    intent: consultation
+    required_tools:
+      - search_knowledge_base
+    rag_used: true
+    grounded: false

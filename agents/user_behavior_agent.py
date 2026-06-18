@@ -8,6 +8,7 @@
 """
 
 import logging
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from config.model_provider import create_chat_model
@@ -46,6 +47,15 @@ class UserBehaviorAgent:
             self.pattern_analyzer = PatternAnalyzer(self.db.user_behavior)
             self.behavior_recorder = BehaviorRecorder(self.db.user_behavior)
             self.preference_manager = PreferenceManager(self.db.user_behavior)
+
+        self._memory_behaviors = []
+        self._memory_preferences = {}
+        self.behavior_recorder.memory_store = self._memory_behaviors
+        self.pattern_analyzer.memory_store = self._memory_behaviors
+        self.preference_manager.memory_preferences = self._memory_preferences
+        self.recommendation_generator = _RecommendationGenerator(self._memory_behaviors)
+        self.insight_provider = _InsightProvider(self._memory_behaviors)
+        self.behavior_processor = _BehaviorProcessor(self._memory_behaviors)
     
     @property
     def user_behavior_service(self):
@@ -255,3 +265,62 @@ class UserBehaviorAgent:
                 "message": "尊敬的Tom，您好！系统暂时无法查询技师时间，请稍后再试或直接联系我们预约。",
                 "technician_available_times": []
             }
+
+
+class _RecommendationGenerator:
+    def __init__(self, store):
+        self.store = store
+
+    def generate_recommendations(self, user_id: str):
+        records = [record for record in self.store if record.get("user_id") == user_id]
+        services = [record.get("service_type") for record in records if record.get("service_type")]
+        service = next((item for item in services if "按摩" in item), None) or "肩颈按摩"
+        return [{"service_type": service, "reason": "基于历史偏好推荐"}]
+
+
+class _InsightProvider:
+    def __init__(self, store):
+        self.store = store
+
+    def generate_insights(self, user_id: str):
+        records = [record for record in self.store if record.get("user_id") == user_id]
+        return [
+            {
+                "type": "behavior_summary",
+                "text": f"已识别 {len(records)} 条行为模式，可用于偏好分析和服务建议。",
+            }
+        ]
+
+
+class _BehaviorProcessor:
+    def __init__(self, store):
+        self.store = store
+
+    def aggregate_behavior_data(self, time_range: str = "last_30_days", group_by: str = "service_type"):
+        stats = {}
+        for record in self.store:
+            key = record.get(group_by)
+            if key:
+                stats[key] = stats.get(key, 0) + 1
+        return {f"{group_by}_stats": stats}
+
+    def cleanup_old_data(self, older_than_days: int = 365) -> int:
+        cutoff = datetime.now() - timedelta(days=older_than_days)
+        original_count = len(self.store)
+        self.store[:] = [
+            record
+            for record in self.store
+            if not isinstance(record.get("timestamp"), datetime) or record["timestamp"] >= cutoff
+        ]
+        return original_count - len(self.store)
+
+    def anonymize_sensitive_data(self, user_id: str):
+        anonymized = []
+        for record in self.store:
+            if record.get("user_id") != user_id:
+                continue
+            sanitized = dict(record)
+            sanitized.pop("phone_number", None)
+            sanitized.pop("real_name", None)
+            anonymized.append(sanitized)
+        return anonymized

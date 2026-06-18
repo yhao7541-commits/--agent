@@ -98,7 +98,7 @@ class TechnicianFinder:
         indices = find_best_match_indices(target_strength, strengths)
         
         if yield_func:
-            yield_func(f"[THOUGHT][预约机器人] 根据专长相似度排序，准备检查可用性...\n")
+            yield_func("[THOUGHT][预约机器人] 根据专长相似度排序，准备检查可用性...\n")
         
         # 按相似度顺序检查技师可用性
         for index in indices:
@@ -109,7 +109,7 @@ class TechnicianFinder:
                 return similar_tech
         
         if yield_func:
-            yield_func(f"[THOUGHT][预约机器人] 没有找到相似且可用的技师\n")
+            yield_func("[THOUGHT][预约机器人] 没有找到相似且可用的技师\n")
         return None
     
     def filter_technicians_by_preference(self, all_techs: list, preference: str) -> list:
