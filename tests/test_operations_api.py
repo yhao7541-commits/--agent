@@ -71,6 +71,7 @@ def test_operations_chat_returns_confirmation_request_for_write_action():
     assert body["confirmation_request"]["tool_name"] == "create_booking"
     assert body["trace_id"]
     assert body["tool_calls"]
+    assert body["booking_slot_sources"]["service_type"] == "user"
 
 
 def test_operations_chat_supports_booking_slot_follow_up():

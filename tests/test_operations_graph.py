@@ -156,6 +156,29 @@ def test_complete_booking_confirmation_contract_has_business_summary():
         assert label in result["reply"]
 
 
+def test_booking_slot_sources_mark_user_and_system_values():
+    result = run_operations_turn(
+        {
+            "user_id": "user_sources",
+            "conversation_id": "conv_sources",
+            "message": "我想明天下午3点约肩颈放松60分钟，需要安静一点的房间",
+        }
+    )
+
+    sources = result["booking_slot_sources"]
+    assert sources["service_type"] == "user"
+    assert sources["date"] == "user"
+    assert sources["time_window"] == "user"
+    assert sources["duration"] == "user"
+    assert sources["special_requests"] == "user"
+    assert sources["customer_name"] == "system"
+    assert any(
+        event["node"] == "extract_booking_slots"
+        and event["metadata"].get("slot_sources", {}).get("service_type") == "user"
+        for event in result["trace_events"]
+    )
+
+
 def test_unavailable_preferred_staff_suggests_alternative_without_booking_confirmation():
     result = run_operations_turn(
         {
@@ -383,6 +406,7 @@ def test_booking_uses_stored_customer_preference_in_confirmation_summary():
 
     assert "喜欢安静房间" in result["customer_context"]["known_preferences"]
     assert "安静" in result["confirmation_request"]["summary"]["special_requests"]
+    assert "memory" in result["booking_slot_sources"]["special_requests"]
 
 
 def test_confirmed_memory_delete_removes_preference_from_future_context():

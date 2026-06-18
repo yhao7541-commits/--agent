@@ -18,6 +18,7 @@ class OperationsChatRequest(BaseModel):
     conversation_id: str
     message: str
     booking_slots: dict[str, Any] = Field(default_factory=dict)
+    booking_slot_sources: dict[str, str] = Field(default_factory=dict)
     confirmation_decision: str | None = None
     confirmed_tool_name: str | None = None
     confirmed_tool_arguments: dict[str, Any] = Field(default_factory=dict)
@@ -30,6 +31,7 @@ class OperationsChatResponse(BaseModel):
     confirmation_required: bool = False
     confirmation_request: dict[str, Any] = Field(default_factory=dict)
     booking_slots: dict[str, Any] = Field(default_factory=dict)
+    booking_slot_sources: dict[str, str] = Field(default_factory=dict)
     missing_slots: list[str] = Field(default_factory=list)
     trace_id: str
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
@@ -50,6 +52,7 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         confirmation_required=result.get("confirmation_required", False),
         confirmation_request=result.get("confirmation_request", {}),
         booking_slots=result.get("booking_slots", {}),
+        booking_slot_sources=result.get("booking_slot_sources", {}),
         missing_slots=result.get("missing_slots", []),
         trace_id=result.get("trace_id", ""),
         tool_calls=result.get("tool_plan", []),

@@ -221,87 +221,127 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         return append_trace(state, "extract_booking_slots", {"skipped": True})
     if state.get("confirmed_tool_name"):
         state["booking_slots"] = dict(state.get("confirmed_tool_arguments", {}))
+        state["booking_slot_sources"] = {
+            field: "confirmed_tool_arguments" for field in state["booking_slots"]
+        }
         state["missing_slots"] = []
         return append_trace(
             state,
             "extract_booking_slots",
-            {"source": "confirmed_tool_arguments", "missing_slots": []},
+            {
+                "source": "confirmed_tool_arguments",
+                "slot_sources": state["booking_slot_sources"],
+                "missing_slots": [],
+            },
         )
 
     message = state.get("message", "")
     slots: dict[str, Any] = dict(state.get("booking_slots", {}))
+    slot_sources: dict[str, str] = dict(state.get("booking_slot_sources", {}))
+    for field in slots:
+        slot_sources.setdefault(field, "previous_turn")
     booking_id_match = re.search(r"\bbooking_[A-Za-z0-9_-]+\b", message)
     if booking_id_match:
         slots["booking_id"] = booking_id_match.group(0)
+        _mark_slot_source(slot_sources, "booking_id", "user")
 
     if state.get("intent") == "cancel":
         slots["customer_name"] = state.get("user_id", "local_user")
+        _mark_slot_source(slot_sources, "customer_name", "system")
         missing = ["booking_id"] if not slots.get("booking_id") else []
         state["booking_slots"] = slots
+        state["booking_slot_sources"] = slot_sources
         state["missing_slots"] = missing
-        return append_trace(state, "extract_booking_slots", {"slots": slots, "missing_slots": missing})
+        return append_trace(
+            state,
+            "extract_booking_slots",
+            {"slots": slots, "slot_sources": slot_sources, "missing_slots": missing},
+        )
 
     if "肩颈" in message:
         slots["service_type"] = "肩颈放松"
+        _mark_slot_source(slot_sources, "service_type", "user")
     elif "推拿" in message:
         slots["service_type"] = "推拿"
+        _mark_slot_source(slot_sources, "service_type", "user")
     elif "按摩" in message:
         slots["service_type"] = "按摩"
+        _mark_slot_source(slot_sources, "service_type", "user")
 
     if "明天" in message:
         slots["date"] = (datetime.now(LOCAL_TIMEZONE) + timedelta(days=1)).strftime("%Y-%m-%d")
+        _mark_slot_source(slot_sources, "date", "user")
     elif "今天" in message:
         slots["date"] = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d")
+        _mark_slot_source(slot_sources, "date", "user")
 
     time_match = _select_time_match(message)
     if time_match:
         slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
+        _mark_slot_source(slot_sources, "time_window", "user")
     elif "上午" in message:
         slots["time_window"] = "09:00-12:00"
+        _mark_slot_source(slot_sources, "time_window", "user")
     elif "下午" in message:
         slots["time_window"] = "12:00-18:00"
+        _mark_slot_source(slot_sources, "time_window", "user")
     elif "晚上" in message:
         slots["time_window"] = "18:00-21:00"
+        _mark_slot_source(slot_sources, "time_window", "user")
 
     duration_match = re.search(r"(\d+)\s*分钟", message)
     if duration_match:
         slots["duration"] = f"{duration_match.group(1)}分钟"
+        _mark_slot_source(slot_sources, "duration", "user")
 
     if "安静" in message:
         slots["special_requests"] = _merge_special_request(
             slots.get("special_requests"),
             "安静一点的房间",
         )
+        _mark_slot_source(slot_sources, "special_requests", "user")
     if "热闹" in message:
         slots["special_requests"] = _merge_special_request(
             slots.get("special_requests"),
             "热闹一点的房间",
         )
+        _mark_slot_source(slot_sources, "special_requests", "user")
     for preference in state.get("customer_context", {}).get("known_preferences", []):
         if "安静" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "安静一点的房间",
             )
+            _mark_slot_source(slot_sources, "special_requests", "memory")
         if "热闹" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "热闹一点的房间",
             )
+            _mark_slot_source(slot_sources, "special_requests", "memory")
         if "大力度" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "避免大力度",
             )
+            _mark_slot_source(slot_sources, "special_requests", "memory")
     if "李雷" in message:
         slots["preferred_staff"] = "李雷"
+        _mark_slot_source(slot_sources, "preferred_staff", "user")
 
     slots["customer_name"] = state.get("user_id", "local_user")
+    _mark_slot_source(slot_sources, "customer_name", "system")
     if state.get("intent") == "reschedule":
         if slots.get("date"):
             slots["new_date"] = slots["date"]
+            _mark_slot_source(slot_sources, "new_date", slot_sources.get("date", "user"))
         if slots.get("time_window"):
             slots["new_time_window"] = slots["time_window"]
+            _mark_slot_source(
+                slot_sources,
+                "new_time_window",
+                slot_sources.get("time_window", "user"),
+            )
         missing = [
             field
             for field in ("booking_id", "new_date", "new_time_window")
@@ -315,8 +355,13 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         ]
 
     state["booking_slots"] = slots
+    state["booking_slot_sources"] = slot_sources
     state["missing_slots"] = missing
-    return append_trace(state, "extract_booking_slots", {"slots": slots, "missing_slots": missing})
+    return append_trace(
+        state,
+        "extract_booking_slots",
+        {"slots": slots, "slot_sources": slot_sources, "missing_slots": missing},
+    )
 
 
 def propose_memory_writes(state: OperationsAgentState) -> OperationsAgentState:
@@ -680,6 +725,15 @@ def _merge_special_request(existing: str | None, addition: str) -> str:
     if addition in existing:
         return existing
     return f"{existing}；{addition}"
+
+
+def _mark_slot_source(sources: dict[str, str], field: str, source: str) -> None:
+    existing = sources.get(field)
+    if not existing:
+        sources[field] = source
+        return
+    if source not in existing.split("+"):
+        sources[field] = f"{existing}+{source}"
 
 
 def _successful_tool_result(state: OperationsAgentState, tool_name: str) -> dict[str, Any] | None:
