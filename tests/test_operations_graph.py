@@ -1,5 +1,6 @@
 from agents.operations.graph import build_operations_graph, run_operations_turn
 from agents.operations.nodes import output_policy_check
+from tools.customer_tools import reset_customer_memory_store
 
 
 def test_operations_graph_compiles():
@@ -341,6 +342,38 @@ def test_confirmed_memory_write_executes_tool():
         for tool_result in result["tool_results"]
     )
     assert "偏好已保存" in result["reply"]
+
+
+def test_booking_uses_stored_customer_preference_in_confirmation_summary():
+    reset_customer_memory_store()
+    pending_memory = run_operations_turn(
+        {
+            "user_id": "user_memory_recall",
+            "conversation_id": "conv_memory_recall",
+            "message": "我以后都喜欢安静一点的房间",
+        }
+    )
+    run_operations_turn(
+        {
+            "user_id": "user_memory_recall",
+            "conversation_id": "conv_memory_recall",
+            "message": "确认",
+            "confirmed_tool_name": pending_memory["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending_memory["confirmation_request"]["arguments"],
+            "confirmation_token": pending_memory["confirmation_request"]["confirmation_token"],
+        }
+    )
+
+    result = run_operations_turn(
+        {
+            "user_id": "user_memory_recall",
+            "conversation_id": "conv_memory_recall_booking",
+            "message": "我想明天下午3点约肩颈放松",
+        }
+    )
+
+    assert "喜欢安静房间" in result["customer_context"]["known_preferences"]
+    assert "安静" in result["confirmation_request"]["summary"]["special_requests"]
 
 
 def test_sensitive_memory_proposal_requires_confirmation():

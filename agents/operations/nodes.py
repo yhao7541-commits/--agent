@@ -181,10 +181,23 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
 
 
 def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
-    state["customer_context"] = {
+    fallback_context = {
         "user_id": state.get("user_id", "local_user"),
         "known_preferences": [],
     }
+    context = ToolExecutionContext(
+        user_id=state.get("user_id", "local_user"),
+        conversation_id=state.get("conversation_id", ""),
+        trace_id=state.get("trace_id", ""),
+        trace_events=list(state.get("trace_events", [])),
+    )
+    result = ToolGateway(build_default_tool_registry()).execute(
+        "lookup_customer_profile",
+        {"user_id": state.get("user_id", "local_user")},
+        context,
+    )
+    state["trace_events"] = context.trace_events
+    state["customer_context"] = result.output if result.success else fallback_context
     return append_trace(state, "load_customer_context", {"loaded": True})
 
 
@@ -245,6 +258,8 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         slots["duration"] = f"{duration_match.group(1)}分钟"
 
     if "安静" in message:
+        slots["special_requests"] = "安静一点的房间"
+    elif any("安静" in preference for preference in state.get("customer_context", {}).get("known_preferences", [])):
         slots["special_requests"] = "安静一点的房间"
     if "李雷" in message:
         slots["preferred_staff"] = "李雷"
