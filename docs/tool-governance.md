@@ -10,7 +10,9 @@ Each tool declares:
 - Pydantic output schema
 - handler function
 
-The gateway returns structured errors for unknown tools, validation failures, confirmation-required writes, and handler exceptions. It also appends tool-level trace events so tests and evals can inspect behavior without reading logs.
+The gateway returns structured errors for unknown tools, validation failures, confirmation-required writes, handler timeouts, and handler exceptions. It also appends tool-level trace events so tests and evals can inspect behavior without reading logs.
+
+Each tool definition includes a timeout and retry budget. Retries are only applied to `read` tools; `write`, `sensitive`, and `external` tools are attempted once so business side effects are not duplicated.
 
 ## Write Policy
 

@@ -1,3 +1,5 @@
+import time
+
 from pydantic import BaseModel
 
 from tools.base import ToolDefinition, ToolPermission
@@ -267,6 +269,97 @@ def test_read_tool_executes_without_confirmation_and_traces():
     assert result.output["services"]
     assert context.trace_events[-1]["event_type"] == "tool_executed"
     assert context.trace_events[-1]["metadata"]["tool_name"] == "search_services"
+
+
+def test_read_tool_retries_transient_handler_failure():
+    calls = []
+
+    def handler(arguments, context):
+        calls.append(arguments)
+        if len(calls) == 1:
+            raise RuntimeError("temporary outage")
+        return {"accepted": True}
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="retrying_read_tool",
+            description="Retrying read test tool",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=CustomInput,
+            output_schema=CustomOutput,
+            handler=handler,
+            max_retries=1,
+        )
+    )
+    gateway = ToolGateway(registry)
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute("retrying_read_tool", {"value": "ok"}, context)
+
+    assert result.success is True
+    assert result.output == {"accepted": True}
+    assert len(calls) == 2
+    assert context.trace_events[-1]["event_type"] == "tool_executed"
+
+
+def test_write_tool_does_not_retry_handler_failure():
+    calls = []
+
+    def handler(arguments, context):
+        calls.append(arguments)
+        raise RuntimeError("write failed")
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="non_retrying_write_tool",
+            description="Non-retrying write test tool",
+            permission=ToolPermission.WRITE,
+            requires_confirmation=False,
+            input_schema=CustomInput,
+            output_schema=CustomOutput,
+            handler=handler,
+            max_retries=3,
+        )
+    )
+    gateway = ToolGateway(registry)
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute("non_retrying_write_tool", {"value": "ok"}, context)
+
+    assert result.success is False
+    assert result.error["code"] == "tool_execution_error"
+    assert len(calls) == 1
+
+
+def test_tool_timeout_returns_controlled_error():
+    def handler(arguments, context):
+        time.sleep(0.05)
+        return {"accepted": True}
+
+    registry = ToolRegistry()
+    registry.register(
+        ToolDefinition(
+            name="slow_read_tool",
+            description="Slow read test tool",
+            permission=ToolPermission.READ,
+            requires_confirmation=False,
+            input_schema=CustomInput,
+            output_schema=CustomOutput,
+            handler=handler,
+            timeout_seconds=0.001,
+        )
+    )
+    gateway = ToolGateway(registry)
+    context = ToolExecutionContext(user_id="user_001", conversation_id="conv_001", trace_id="trace_001")
+
+    result = gateway.execute("slow_read_tool", {"value": "ok"}, context)
+
+    assert result.success is False
+    assert result.error["code"] == "timeout"
+    assert context.trace_events[-1]["event_type"] == "tool_error"
 
 
 def test_default_registry_contains_staff_and_customer_read_tools():
