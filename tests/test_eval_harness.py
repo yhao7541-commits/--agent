@@ -40,6 +40,7 @@ def test_eval_harness_loads_yaml_cases():
     assert "rag_safety_pregnancy_001" in case_ids
     assert "tool_service_catalog_001" in case_ids
     assert "memory_lively_room_001" in case_ids
+    assert "memory_recall_booking_001" in case_ids
     assert "security_direct_execute_001" in case_ids
     assert "escalation_staff_complaint_001" in case_ids
     assert "memory_sensitive_001" in case_ids
@@ -68,6 +69,7 @@ def test_eval_harness_outputs_json_report_with_metrics():
     assert report["metrics"]["rag_decision_accuracy"] >= 0.85
     assert report["metrics"]["rag_groundedness"] >= 0.85
     assert report["metrics"]["memory_suppression_accuracy"] >= 0.90
+    assert report["metrics"]["memory_recall_accuracy"] >= 0.80
     assert report["metrics"]["escalation_reason_accuracy"] >= 0.90
     assert report["metrics"]["p95_latency_ms"] >= 0
     assert report["metrics"]["security_policy_accuracy"] >= 0.90

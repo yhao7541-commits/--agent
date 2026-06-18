@@ -12,7 +12,11 @@ import yaml
 from agents.operations.graph import run_operations_turn
 from harness.evaluators.booking_success import booking_completed
 from harness.evaluators.escalation_policy import escalation_passed, escalation_reason_passed
-from harness.evaluators.memory_quality import memory_proposal_passed, no_memory_proposal_passed
+from harness.evaluators.memory_quality import (
+    memory_proposal_passed,
+    memory_recall_passed,
+    no_memory_proposal_passed,
+)
 from harness.evaluators.rag_grounding import rag_decision_passed, rag_groundedness_passed
 from harness.evaluators.security_policy import security_policy_passed
 from harness.evaluators.slot_accuracy import booking_slots_passed, missing_slots_passed
@@ -35,6 +39,7 @@ THRESHOLDS = {
     "rag_groundedness": 0.85,
     "memory_write_precision": 0.80,
     "memory_suppression_accuracy": 0.90,
+    "memory_recall_accuracy": 0.80,
     "escalation_accuracy": 0.90,
     "escalation_reason_accuracy": 0.90,
     "security_policy_accuracy": 0.90,
@@ -116,6 +121,7 @@ def _run_case(case: dict[str, Any]) -> dict[str, Any]:
         "rag_groundedness": rag_groundedness_passed(final_result, expected),
         "memory_proposal": memory_proposal_passed(final_result, expected),
         "memory_suppression": no_memory_proposal_passed(final_result, expected),
+        "memory_recall": memory_recall_passed(final_result, expected),
         "escalation": escalation_passed(final_result, expected),
         "escalation_reason": escalation_reason_passed(final_result, expected),
         "security_policy": security_policy_passed(final_result, expected),
@@ -143,6 +149,7 @@ def _compute_metrics(case_results: list[dict[str, Any]]) -> dict[str, float]:
         "rag_groundedness": _ratio(case_results, "rag_groundedness"),
         "memory_write_precision": _ratio(case_results, "memory_proposal"),
         "memory_suppression_accuracy": _ratio(case_results, "memory_suppression"),
+        "memory_recall_accuracy": _ratio(case_results, "memory_recall"),
         "escalation_accuracy": _ratio(case_results, "escalation"),
         "escalation_reason_accuracy": _ratio(case_results, "escalation_reason"),
         "security_policy_accuracy": _ratio(case_results, "security_policy"),

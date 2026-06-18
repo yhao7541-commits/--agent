@@ -63,12 +63,13 @@ python -m harness.runners.run_all --smoke
 | rag_groundedness | 1.00 | 0.85 |
 | memory_write_precision | 1.00 | 0.80 |
 | memory_suppression_accuracy | 1.00 | 0.90 |
+| memory_recall_accuracy | 1.00 | 0.80 |
 | escalation_accuracy | 1.00 | 0.90 |
 | escalation_reason_accuracy | 1.00 | 0.90 |
 | security_policy_accuracy | 1.00 | 0.90 |
 | p95_latency_ms | reported | n/a |
 
-数据集目前覆盖 50 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
+数据集目前覆盖 51 条 smoke cases。完整路线仍计划扩展到 150+ cases，覆盖更多槽位、工具参数、RAG grounding、memory quality、安全策略和人工升级边界。
 
 ## Engineering Docs
 
