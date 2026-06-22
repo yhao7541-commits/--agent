@@ -1,10 +1,11 @@
 from typing import Any
 import os
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from agents.operations.graph import run_operations_turn
+from observability.replay import format_replay
 from observability.trace_schema import TraceEvent
 from observability.trace_store import JsonlTraceStore
 
@@ -42,6 +43,13 @@ class OperationsChatResponse(BaseModel):
     escalated: bool = False
 
 
+class OperationsTraceResponse(BaseModel):
+    trace_id: str
+    conversation_id: str
+    events: list[TraceEvent] = Field(default_factory=list)
+    replay: str
+
+
 @router.post("/chat", response_model=OperationsChatResponse)
 async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
     result = run_operations_turn(request.model_dump())
@@ -61,6 +69,28 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         rag_used=result.get("rag_used", False),
         rag_citations=result.get("rag_citations", {}),
         escalated=result.get("escalated", False),
+    )
+
+
+@router.get("/traces/{trace_id}", response_model=OperationsTraceResponse)
+async def get_trace(trace_id: str) -> OperationsTraceResponse:
+    trace_store_path = os.getenv(TRACE_STORE_PATH_ENV)
+    if not trace_store_path:
+        raise HTTPException(status_code=404, detail="Trace store is not configured.")
+
+    try:
+        events = JsonlTraceStore(trace_store_path).read_trace(trace_id)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Trace could not be read.") from exc
+
+    if not events:
+        raise HTTPException(status_code=404, detail="Trace not found.")
+
+    return OperationsTraceResponse(
+        trace_id=trace_id,
+        conversation_id=events[0].conversation_id,
+        events=events,
+        replay=format_replay(events),
     )
 
 

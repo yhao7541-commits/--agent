@@ -53,6 +53,42 @@ def test_operations_chat_persists_trace_events_when_store_is_configured(tmp_path
     assert all(event.conversation_id == "conv_trace" for event in events)
 
 
+def test_operations_trace_endpoint_returns_events_and_replay(tmp_path, monkeypatch):
+    trace_path = tmp_path / "operations-traces.jsonl"
+    monkeypatch.setenv("OPERATIONS_TRACE_STORE_PATH", str(trace_path))
+    client = make_client()
+    chat_response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_trace_api",
+            "conversation_id": "conv_trace_api",
+            "message": "浣犲ソ",
+        },
+    )
+    trace_id = chat_response.json()["trace_id"]
+
+    response = client.get(f"/api/operations/traces/{trace_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trace_id"] == trace_id
+    assert body["conversation_id"] == "conv_trace_api"
+    assert body["events"]
+    assert body["events"][0]["node"] == "initialize_turn"
+    assert body["replay"].startswith(f"Trace: {trace_id}")
+    assert "raw_prompt" not in str(body)
+
+
+def test_operations_trace_endpoint_returns_controlled_404_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("OPERATIONS_TRACE_STORE_PATH", raising=False)
+    client = make_client()
+
+    response = client.get("/api/operations/traces/missing_trace")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Trace store is not configured."}
+
+
 def test_operations_chat_returns_confirmation_request_for_write_action():
     client = make_client()
 
