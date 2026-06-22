@@ -10,6 +10,13 @@ python -m harness.runners.run_all --smoke
 
 The runner loads YAML cases, executes the operations graph, applies evaluator checks, and emits a JSON report.
 
+The JSON report includes a `governance` block for release review:
+
+- `failed_thresholds` lists any metric below its gate.
+- `failed_case_ids` lists individual cases that failed evaluator checks.
+- `suite_counts` shows coverage distribution across booking, RAG, memory, security, escalation, and tool-routing suites.
+- `p95_latency_ms` carries the latency guardrail used by the smoke report.
+
 ## Current Metrics
 
 - `intent_accuracy`

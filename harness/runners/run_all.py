@@ -65,6 +65,7 @@ def run_eval(dataset_dir: Path | None = None) -> dict[str, Any]:
         "case_count": len(case_results),
         "metrics": metrics,
         "thresholds": THRESHOLDS,
+        "governance": _build_governance_summary(case_results, metrics),
         "passed": passed,
         "cases": case_results,
     }
@@ -158,6 +159,31 @@ def _compute_metrics(case_results: list[dict[str, Any]]) -> dict[str, float]:
         "escalation_reason_accuracy": _ratio(case_results, "escalation_reason"),
         "security_policy_accuracy": _ratio(case_results, "security_policy"),
         "p95_latency_ms": _p95_latency(case_results),
+    }
+
+
+def _build_governance_summary(
+    case_results: list[dict[str, Any]],
+    metrics: dict[str, float],
+) -> dict[str, Any]:
+    failed_cases = [case for case in case_results if not case.get("passed", False)]
+    failed_thresholds = {
+        name: {"value": metrics.get(name, 0.0), "threshold": threshold}
+        for name, threshold in THRESHOLDS.items()
+        if metrics.get(name, 0.0) < threshold
+    }
+    suite_counts: dict[str, int] = {}
+    for case in case_results:
+        suite = str(case.get("suite", "default"))
+        suite_counts[suite] = suite_counts.get(suite, 0) + 1
+
+    return {
+        "case_count": len(case_results),
+        "failed_case_count": len(failed_cases),
+        "failed_case_ids": [case["id"] for case in failed_cases],
+        "failed_thresholds": failed_thresholds,
+        "suite_counts": dict(sorted(suite_counts.items())),
+        "p95_latency_ms": metrics.get("p95_latency_ms", 0.0),
     }
 
 
