@@ -47,4 +47,4 @@ python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
 - `output_policy_check`
 - `finalize_turn`
 
-This keeps intent, slot filling, memory proposals, tool planning, confirmation, response policy checks, and trace finalization visible and testable. Booking slot provenance is carried in state and trace metadata so user-provided, memory-derived, and system-filled values can be audited.
+This keeps intent, slot filling, memory proposals, tool planning, confirmation, response policy checks, and trace finalization visible and testable. Booking slot provenance is carried in state and trace metadata so user-provided, memory-derived, and system-filled values can be audited. When a stored customer preference is applied to booking slots, the runtime sets `memory_used`, records `applied_customer_memories`, and exposes those fields through `/api/operations/chat` and the operations console.

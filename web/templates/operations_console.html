@@ -367,11 +367,17 @@
                 planned: data.tool_calls || [],
                 executed: data.executed_tools || []
             });
-            $("memory-json").textContent = asJson(data.memory_proposals || []);
+            $("memory-json").textContent = asJson({
+                proposals: data.memory_proposals || [],
+                customer_context: data.customer_context || {},
+                memory_used: data.memory_used || false,
+                applied_customer_memories: data.applied_customer_memories || []
+            });
             $("rag-json").textContent = asJson(data.rag_citations || {});
             $("trace-json").textContent = asJson({
                 trace_id: data.trace_id,
                 rag_used: data.rag_used,
+                memory_used: data.memory_used,
                 missing_slots: data.missing_slots || []
             });
             $("confirmation-status").innerHTML = data.confirmation_required

@@ -67,6 +67,8 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
     state.setdefault("booking_issue", {})
     state.setdefault("missing_slots", [])
     state.setdefault("customer_context", {})
+    state.setdefault("memory_used", False)
+    state.setdefault("applied_customer_memories", [])
     state.setdefault("retrieved_knowledge", [])
     state.setdefault("rag_citations", {})
     state.setdefault("tool_plan", [])
@@ -211,7 +213,15 @@ def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
     )
     state["trace_events"] = context.trace_events
     state["customer_context"] = result.output if result.success else fallback_context
-    return append_trace(state, "load_customer_context", {"loaded": True})
+    return append_trace(
+        state,
+        "load_customer_context",
+        {
+            "loaded": result.success,
+            "memory_count": len(state["customer_context"].get("memories", [])),
+            "known_preference_count": len(state["customer_context"].get("known_preferences", [])),
+        },
+    )
 
 
 def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
@@ -304,25 +314,42 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
             "热闹一点的房间",
         )
         _mark_slot_source(slot_sources, "special_requests", "user")
-    for preference in state.get("customer_context", {}).get("known_preferences", []):
+    applied_memories = list(state.get("applied_customer_memories", []))
+    for memory in _customer_memory_candidates(state):
+        preference = memory.get("content", "")
         if "安静" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "安静一点的房间",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
         if "热闹" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "热闹一点的房间",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
         if "大力度" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "避免大力度",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
     if "李雷" in message:
         slots["preferred_staff"] = "李雷"
         _mark_slot_source(slot_sources, "preferred_staff", "user")
@@ -354,11 +381,19 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
 
     state["booking_slots"] = slots
     state["booking_slot_sources"] = slot_sources
+    state["applied_customer_memories"] = applied_memories
+    state["memory_used"] = bool(applied_memories)
     state["missing_slots"] = missing
     return append_trace(
         state,
         "extract_booking_slots",
-        {"slots": slots, "slot_sources": slot_sources, "missing_slots": missing},
+        {
+            "slots": slots,
+            "slot_sources": slot_sources,
+            "missing_slots": missing,
+            "memory_used": state["memory_used"],
+            "applied_memory_count": len(applied_memories),
+        },
     )
 
 
@@ -768,6 +803,47 @@ def _merge_special_request(existing: str | None, addition: str) -> str:
     if addition in existing:
         return existing
     return f"{existing}；{addition}"
+
+
+def _customer_memory_candidates(state: OperationsAgentState) -> list[dict[str, Any]]:
+    context = state.get("customer_context", {})
+    memories = [memory for memory in context.get("memories", []) if memory.get("content")]
+    if memories:
+        return memories
+    return [
+        {
+            "memory_id": "",
+            "type": "preference",
+            "content": preference,
+            "sensitivity": "normal",
+        }
+        for preference in context.get("known_preferences", [])
+        if preference
+    ]
+
+
+def _append_applied_customer_memory(
+    applied_memories: list[dict[str, Any]],
+    memory: dict[str, Any],
+    applied_to: str,
+) -> None:
+    record = {
+        "memory_id": memory.get("memory_id") or memory.get("id", ""),
+        "type": memory.get("type", "preference"),
+        "content": memory.get("content", ""),
+        "sensitivity": memory.get("sensitivity", "normal"),
+        "applied_to": applied_to,
+    }
+    if not record["content"]:
+        return
+
+    key = (record["memory_id"], record["content"], record["applied_to"])
+    if any(
+        (existing.get("memory_id"), existing.get("content"), existing.get("applied_to")) == key
+        for existing in applied_memories
+    ):
+        return
+    applied_memories.append(record)
 
 
 def _mark_slot_source(sources: dict[str, str], field: str, source: str) -> None:

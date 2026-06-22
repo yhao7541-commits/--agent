@@ -466,6 +466,22 @@ def test_booking_uses_stored_customer_preference_in_confirmation_summary():
     assert "喜欢安静房间" in result["customer_context"]["known_preferences"]
     assert "安静" in result["confirmation_request"]["summary"]["special_requests"]
     assert "memory" in result["booking_slot_sources"]["special_requests"]
+    assert result["memory_used"] is True
+    assert any(
+        memory["content"] == "喜欢安静房间"
+        and memory["applied_to"] == "booking_slots.special_requests"
+        for memory in result["applied_customer_memories"]
+    )
+    assert any(
+        event["node"] == "load_customer_context"
+        and event["metadata"].get("memory_count") == 1
+        for event in result["trace_events"]
+    )
+    assert any(
+        event["node"] == "extract_booking_slots"
+        and event["metadata"].get("memory_used") is True
+        for event in result["trace_events"]
+    )
 
 
 def test_confirmed_memory_delete_removes_preference_from_future_context():

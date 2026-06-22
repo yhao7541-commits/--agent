@@ -38,6 +38,9 @@ class OperationsChatResponse(BaseModel):
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     executed_tools: list[dict[str, Any]] = Field(default_factory=list)
     memory_proposals: list[dict[str, Any]] = Field(default_factory=list)
+    customer_context: dict[str, Any] = Field(default_factory=dict)
+    memory_used: bool = False
+    applied_customer_memories: list[dict[str, Any]] = Field(default_factory=list)
     rag_used: bool = False
     rag_citations: dict[str, Any] = Field(default_factory=dict)
     escalated: bool = False
@@ -66,6 +69,9 @@ async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
         tool_calls=result.get("tool_plan", []),
         executed_tools=result.get("tool_results", []),
         memory_proposals=result.get("memory_proposals", []),
+        customer_context=result.get("customer_context", {}),
+        memory_used=result.get("memory_used", False),
+        applied_customer_memories=result.get("applied_customer_memories", []),
         rag_used=result.get("rag_used", False),
         rag_citations=result.get("rag_citations", {}),
         escalated=result.get("escalated", False),

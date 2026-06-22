@@ -65,7 +65,15 @@ User: `我以后都喜欢安静一点的房间`
 
 Expected: a memory proposal is produced and `write_customer_preference` requires confirmation.
 
-## 6. Trace Replay
+## 6. Stored Preference Is Applied To Booking
+
+Confirm the memory proposal, then send:
+
+User: `我想明天下午3点约肩颈放松`
+
+Expected: the booking confirmation summary includes the quiet-room preference, `memory_used=true`, `applied_customer_memories[]` lists the stored preference, and trace metadata shows the loaded/applied memory counts.
+
+## 7. Trace Replay
 
 Set a trace path before running the operations request:
 

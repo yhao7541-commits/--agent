@@ -30,7 +30,7 @@ User -> LangGraph Runtime -> Tool Gateway -> Booking/Knowledge/Memory Tools -> T
 
 ### Memory lifecycle
 
-客户长期记忆先生成 `MemoryProposal`，记录 type、content、evidence、confidence、sensitivity 和 confirmation policy。明确偏好可以生成 proposal，模糊表达会被忽略，过敏/隐私约束等敏感记忆需要确认；确认后的 `write_customer_preference` 会进入 `MemoryStore.upsert()`，重复偏好会更新，冲突偏好会返回 conflict result。后续预约会通过 `lookup_customer_profile` 读取已确认偏好并用于确认摘要。
+客户长期记忆先生成 `MemoryProposal`，记录 type、content、evidence、confidence、sensitivity 和 confirmation policy。明确偏好可以生成 proposal，模糊表达会被忽略，过敏/隐私约束等敏感记忆需要确认；确认后的 `write_customer_preference` 会进入 `MemoryStore.upsert()`，重复偏好会更新，冲突偏好会返回 conflict result。后续预约会通过 `lookup_customer_profile` 读取已确认偏好并用于确认摘要；当记忆实际影响预约槽位时，operations state、API response 和 console 会暴露 `memory_used`、`applied_customer_memories` 和 `customer_context`，trace metadata 记录加载与应用数量。
 
 ### RAG grounding
 
