@@ -14,6 +14,12 @@ User: `我想明天下午3点约肩颈放松`
 
 Expected: the agent plans read tools and `create_booking`, but the gateway returns a confirmation request before any write succeeds.
 
+More realistic time expressions:
+
+- `我想明天下午3点半约肩颈放松` -> `time_window=15:30`
+- `我想后天上午10点约推拿` -> date is normalized to the day after tomorrow
+- `我想下周五晚上7点约按摩` -> date is normalized to next week's Friday
+
 ## 3. Confirmed Booking Executes Write
 
 Send the previous `confirmation_request.tool_name` and `confirmation_request.arguments` back with message `确认`.

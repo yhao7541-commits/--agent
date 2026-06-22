@@ -268,16 +268,14 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         slots["service_type"] = "按摩"
         _mark_slot_source(slot_sources, "service_type", "user")
 
-    if "明天" in message:
-        slots["date"] = (datetime.now(LOCAL_TIMEZONE) + timedelta(days=1)).strftime("%Y-%m-%d")
-        _mark_slot_source(slot_sources, "date", "user")
-    elif "今天" in message:
-        slots["date"] = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d")
+    normalized_date = _normalize_booking_date(message)
+    if normalized_date:
+        slots["date"] = normalized_date
         _mark_slot_source(slot_sources, "date", "user")
 
     time_match = _select_time_match(message)
     if time_match:
-        slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
+        slots["time_window"] = _normalize_time_match(time_match)
         _mark_slot_source(slot_sources, "time_window", "user")
     elif "上午" in message:
         slots["time_window"] = "09:00-12:00"
@@ -675,7 +673,40 @@ def finalize_turn(state: OperationsAgentState) -> OperationsAgentState:
     )
 
 
-def _normalize_hour(period: str | None, raw_hour: str) -> str:
+def _normalize_booking_date(message: str) -> str | None:
+    today = datetime.now(LOCAL_TIMEZONE).date()
+    if "大后天" in message:
+        return (today + timedelta(days=3)).strftime("%Y-%m-%d")
+    if "后天" in message:
+        return (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    if "明天" in message:
+        return (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    if "今天" in message:
+        return today.strftime("%Y-%m-%d")
+
+    match = re.search(r"下(?:周|星期)([一二三四五六日天])", message)
+    if not match:
+        return None
+
+    weekdays = {
+        "一": 0,
+        "二": 1,
+        "三": 2,
+        "四": 3,
+        "五": 4,
+        "六": 5,
+        "日": 6,
+        "天": 6,
+    }
+    start_of_next_week = today + timedelta(days=(7 - today.weekday()))
+    return (start_of_next_week + timedelta(days=weekdays[match.group(1)])).strftime("%Y-%m-%d")
+
+
+def _normalize_time_match(match: re.Match[str]) -> str:
+    return _normalize_hour(match.group(1), match.group(2), match.group(3))
+
+
+def _normalize_hour(period: str | None, raw_hour: str, raw_minute: str | None = None) -> str:
     chinese_numbers = {
         "一": 1,
         "二": 2,
@@ -692,11 +723,23 @@ def _normalize_hour(period: str | None, raw_hour: str) -> str:
     hour = chinese_numbers.get(raw_hour, int(raw_hour) if raw_hour.isdigit() else 0)
     if period in {"下午", "晚上"} and hour < 12:
         hour += 12
-    return f"{hour:02d}:00"
+    minute = _normalize_minute(raw_minute)
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _normalize_minute(raw_minute: str | None) -> int:
+    if not raw_minute:
+        return 0
+    if raw_minute == "半":
+        return 30
+    digits = raw_minute.removesuffix("分")
+    return int(digits) if digits.isdigit() else 0
 
 
 def _select_time_match(message: str) -> re.Match[str] | None:
-    pattern = re.compile(r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(?![的儿也])")
+    pattern = re.compile(
+        r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(半|[0-5]?\d分?)?(?![的儿也])"
+    )
     for match in pattern.finditer(message):
         if _is_contextual_time_match(message, match):
             return match
