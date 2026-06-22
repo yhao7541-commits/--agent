@@ -13,6 +13,8 @@ Client
 
 The important engineering boundary is that the graph plans work, the gateway governs tool execution, and observability records what happened. Existing service and database layers remain in place for the legacy application surface.
 
+RAG grounding is selected by `RAG_BACKEND`. The default `local` backend uses deterministic in-repo knowledge files for CI and eval stability. Setting `RAG_BACKEND=mcp` routes `search_knowledge_base` through the external stdio MCP server configured by `RAG_MCP_COMMAND`, `RAG_MCP_ARGS`, and `RAG_MCP_CWD`; `RAG_MCP_COLLECTION` is optional and is only sent when present.
+
 Set `OPERATIONS_TRACE_STORE_PATH` to persist `/api/operations/chat` trace events to JSONL. The replay CLI can then inspect a historical run:
 
 ```bash
