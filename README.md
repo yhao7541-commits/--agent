@@ -44,20 +44,32 @@ RAG_MCP_COMMAND=python
 RAG_MCP_ARGS=-m src.mcp_server.server
 RAG_MCP_CWD=D:\Dev\RAG\MODULAR-RAG-MCP-SERVER
 RAG_MCP_TOOL=query_knowledge_hub
-RAG_MCP_COLLECTION=knowledge_hub
-RAG_MCP_TIMEOUT_SECONDS=10
+RAG_MCP_COLLECTION=wellness_service_ops
+RAG_MCP_TIMEOUT_SECONDS=45
+RAG_LLM_PROVIDER=openai
+RAG_LLM_MODEL=qwen-plus
+RAG_LLM_API_KEY=your_dashscope_or_openai_compatible_key_here
+RAG_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RAG_EMBEDDING_PROVIDER=openai
+RAG_EMBEDDING_MODEL=text-embedding-v4
+RAG_EMBEDDING_DIMENSIONS=1024
+RAG_EMBEDDING_API_KEY=your_dashscope_or_openai_compatible_key_here
+RAG_EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RAG_VECTOR_STORE_COLLECTION=wellness_service_ops
+RAG_RERANK_ENABLED=false
+RAG_ANSWER_GENERATION_ENABLED=false
 ```
 
 诊断真实 MCP 连接和 collection 命中：
 
 ```powershell
-python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1
 ```
 
 诊断输出会列出 MCP collections、chunk count 和 citation metadata。`chunk_count > 0` 只能证明 MCP 检索链路可用；仍需检查 `chunks[].source` 是否来自目标 wellness 知识域。需要强制校验 source 时可以加：
 
 ```powershell
-python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1 --require-source docs/knowledge
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1 --require-source booking_policy.md
 ```
 
 ### Trace replay
@@ -389,8 +401,20 @@ RAG_MCP_COMMAND=python
 RAG_MCP_ARGS=-m src.mcp_server.server
 RAG_MCP_CWD=D:\Dev\RAG\MODULAR-RAG-MCP-SERVER
 RAG_MCP_TOOL=query_knowledge_hub
-RAG_MCP_COLLECTION=knowledge_hub
-RAG_MCP_TIMEOUT_SECONDS=10
+RAG_MCP_COLLECTION=wellness_service_ops
+RAG_MCP_TIMEOUT_SECONDS=45
+RAG_LLM_PROVIDER=openai
+RAG_LLM_MODEL=qwen-plus
+RAG_LLM_API_KEY=your_dashscope_or_openai_compatible_key_here
+RAG_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RAG_EMBEDDING_PROVIDER=openai
+RAG_EMBEDDING_MODEL=text-embedding-v4
+RAG_EMBEDDING_DIMENSIONS=1024
+RAG_EMBEDDING_API_KEY=your_dashscope_or_openai_compatible_key_here
+RAG_EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+RAG_VECTOR_STORE_COLLECTION=wellness_service_ops
+RAG_RERANK_ENABLED=false
+RAG_ANSWER_GENERATION_ENABLED=false
 ```
 
 常见配置方向：
@@ -453,16 +477,16 @@ python -m harness.runners.run_all --smoke
 检查外部 MCP RAG 连接：
 
 ```powershell
-python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1
 ```
 
-如果要防止误用非 wellness collection，可加 `--require-source docs/knowledge`，让诊断在没有命中目标知识域时返回非零退出码。
+如果要防止误用非 wellness collection，可加 `--require-source booking_policy.md`，让诊断在没有命中目标知识域时返回非零退出码。
 
 ## Known limitations
 
 - 当前 eval dataset 是 184-case smoke 规模，还不是最终生产级回归集。
 - Memory store 是最小可测实现，尚未接入完整用户生命周期审计 UI。
-- MCP-backed RAG adapter 已接入，但真实效果取决于 `RAG_MCP_COLLECTION` 是否指向包含 wellness 业务资料的 collection；诊断脚本会显示命中的 source。
+- MCP-backed RAG adapter 已接入；`RAG_MCP_COLLECTION=wellness_service_ops` 时可以使用已灌入的 wellness 业务资料，诊断脚本会显示命中的 source。
 - 新 operations endpoint 已可用，但旧 Web/chat 流程尚未切换到新 runtime。
 
 ## 主要页面

@@ -45,19 +45,20 @@ $env:RAG_BACKEND="mcp"
 $env:RAG_MCP_COMMAND="python"
 $env:RAG_MCP_ARGS="-m src.mcp_server.server"
 $env:RAG_MCP_CWD="D:\Dev\RAG\MODULAR-RAG-MCP-SERVER"
-$env:RAG_MCP_COLLECTION="knowledge_hub"
-python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+$env:RAG_MCP_COLLECTION="wellness_service_ops"
+$env:RAG_MCP_TIMEOUT_SECONDS="45"
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1
 ```
 
-Expected for the diagnostic: `ok=true`, `chunk_count >= 1`, and `chunks[].source` shows which external documents were used. If the source is not a wellness document, the MCP link is healthy but the collection needs domain-aligned content before a polished demo.
+Expected for the diagnostic: `ok=true`, `chunk_count >= 1`, and `chunks[].source` includes a wellness policy document such as `booking_policy.md`.
 
 Optional domain gate:
 
 ```powershell
-python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1 --require-source docs/knowledge
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1 --require-source booking_policy.md
 ```
 
-Expected: this command exits non-zero until the external MCP collection contains wellness knowledge sources.
+Expected: this command exits zero only when the external MCP collection contains the wellness booking policy source.
 
 ## 5. Preference Creates Memory Proposal
 
