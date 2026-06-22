@@ -11,9 +11,22 @@ Client
   -> Trace events and eval records
 ```
 
+```text
+Consultation message
+  -> classify_intent
+  -> plan_tool_calls
+  -> search_knowledge_base
+  -> RAG_BACKEND=local: docs/knowledge deterministic adapter
+  -> RAG_BACKEND=mcp: stdio MCP query_knowledge_hub
+  -> rag_retrieval_completed trace event with citations
+  -> generate_response
+```
+
 The important engineering boundary is that the graph plans work, the gateway governs tool execution, and observability records what happened. Existing service and database layers remain in place for the legacy application surface.
 
-RAG grounding is selected by `RAG_BACKEND`. The default `local` backend uses deterministic in-repo knowledge files for CI and eval stability. Setting `RAG_BACKEND=mcp` routes `search_knowledge_base` through the external stdio MCP server configured by `RAG_MCP_COMMAND`, `RAG_MCP_ARGS`, and `RAG_MCP_CWD`; `RAG_MCP_COLLECTION` is optional and is only sent when present.
+RAG grounding is selected by `RAG_BACKEND`. The default `local` backend uses deterministic in-repo knowledge files for CI and eval stability. Setting `RAG_BACKEND=mcp` routes `search_knowledge_base` through the external stdio MCP server configured by `RAG_MCP_COMMAND`, `RAG_MCP_ARGS`, and `RAG_MCP_CWD`; `RAG_MCP_COLLECTION` is optional and is only sent when present. Use `python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1` to verify that the MCP server is reachable and that the configured collection returns citation chunks. Add `--require-source docs/knowledge` when the diagnostic should fail unless at least one returned citation comes from the expected wellness knowledge domain.
+
+The local `D:\Dev\RAG\MODULAR-RAG-MCP-SERVER` server exposes `list_collections`; in this environment it reports `default` with 0 documents and `knowledge_hub` with indexed documents. Treat that as a deployment setting, not a code dependency: the application only reads the collection from environment variables.
 
 Set `OPERATIONS_TRACE_STORE_PATH` to persist `/api/operations/chat` trace events to JSONL. The replay CLI can then inspect a historical run:
 

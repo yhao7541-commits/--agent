@@ -26,8 +26,51 @@ User: `如果我迟到20分钟会怎么样？`
 
 Expected: `search_knowledge_base` runs and trace metadata includes source chunks from `booking_policy.md`.
 
+Local deterministic mode:
+
+```powershell
+$env:RAG_BACKEND="local"
+```
+
+MCP-backed mode:
+
+```powershell
+$env:RAG_BACKEND="mcp"
+$env:RAG_MCP_COMMAND="python"
+$env:RAG_MCP_ARGS="-m src.mcp_server.server"
+$env:RAG_MCP_CWD="D:\Dev\RAG\MODULAR-RAG-MCP-SERVER"
+$env:RAG_MCP_COLLECTION="knowledge_hub"
+python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+```
+
+Expected for the diagnostic: `ok=true`, `chunk_count >= 1`, and `chunks[].source` shows which external documents were used. If the source is not a wellness document, the MCP link is healthy but the collection needs domain-aligned content before a polished demo.
+
+Optional domain gate:
+
+```powershell
+python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1 --require-source docs/knowledge
+```
+
+Expected: this command exits non-zero until the external MCP collection contains wellness knowledge sources.
+
 ## 5. Preference Creates Memory Proposal
 
 User: `我以后都喜欢安静一点的房间`
 
 Expected: a memory proposal is produced and `write_customer_preference` requires confirmation.
+
+## 6. Trace Replay
+
+Set a trace path before running the operations request:
+
+```powershell
+$env:OPERATIONS_TRACE_STORE_PATH="data/traces.jsonl"
+```
+
+After the API response returns a `trace_id`, run:
+
+```powershell
+python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
+```
+
+Expected: replay shows the node sequence, confirmation interception, tool calls, RAG retrieval events, and final response summary in execution order.

@@ -34,7 +34,31 @@ User -> LangGraph Runtime -> Tool Gateway -> Booking/Knowledge/Memory Tools -> T
 
 ### RAG grounding
 
-咨询和政策类问题会走知识检索路径。每次 RAG 检索都会在 trace metadata 中保存 query、source、chunk_id、score 和 text preview，用户回复可以自然表达，但审计链路保留 citations。
+咨询和政策类问题会走知识检索路径。默认 `RAG_BACKEND=local` 使用仓库内 `docs/knowledge/` 的 deterministic knowledge adapter，保证 CI 和 eval 不依赖外部服务；设置 `RAG_BACKEND=mcp` 后，`search_knowledge_base` 会通过 stdio MCP 调用外部 RAG server。每次 RAG 检索都会在 trace metadata 中保存 query、source、chunk_id、score 和 text preview，用户回复可以自然表达，但审计链路保留 citations。
+
+MCP-backed RAG 通过环境变量接入，不需要修改 graph 或 API：
+
+```env
+RAG_BACKEND=mcp
+RAG_MCP_COMMAND=python
+RAG_MCP_ARGS=-m src.mcp_server.server
+RAG_MCP_CWD=D:\Dev\RAG\MODULAR-RAG-MCP-SERVER
+RAG_MCP_TOOL=query_knowledge_hub
+RAG_MCP_COLLECTION=knowledge_hub
+RAG_MCP_TIMEOUT_SECONDS=10
+```
+
+诊断真实 MCP 连接和 collection 命中：
+
+```powershell
+python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+```
+
+诊断输出会列出 MCP collections、chunk count 和 citation metadata。`chunk_count > 0` 只能证明 MCP 检索链路可用；仍需检查 `chunks[].source` 是否来自目标 wellness 知识域。需要强制校验 source 时可以加：
+
+```powershell
+python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1 --require-source docs/knowledge
+```
 
 ### Trace replay
 
@@ -92,7 +116,7 @@ Operations runtime console: `http://127.0.0.1:8000/operations`
 
 - **智能任务分类**：自动识别用户是在咨询服务、预约技师、查询无关问题，还是触发用户行为分析，并将请求路由到对应 Agent。
 - **多 Agent 协作**：通过任务分类 Agent、咨询 Agent、预约 Agent 和用户行为 Agent 分工处理复杂流程，减少单个模块的职责膨胀。
-- **RAG 知识咨询**：使用 FAISS 向量索引检索知识库内容，结合大模型生成自然语言回答，支持流式输出。
+- **RAG 知识咨询**：支持本地 deterministic knowledge adapter 和环境变量驱动的 MCP-backed RAG；咨询路径会保留 citation metadata，便于 trace/replay 审计。
 - **智能预约管理**：根据用户需求、员工专长、历史偏好和可用时间进行匹配，辅助完成预约确认。
 - **受控工具调用**：新增 Tool Governance Gateway，对 read、write、external、sensitive 工具进行 schema 校验、确认拦截和 trace 记录。
 - **状态化 Operations Runtime**：新增 LangGraph graph skeleton，把意图判断、槽位提取、工具计划、确认请求、响应生成、输出策略检查和 trace 写入建模为显式节点。
@@ -359,6 +383,14 @@ DATABASE_URL=sqlite:///./data/smart_appointment.db
 
 DEBUG=True
 LOG_LEVEL=INFO
+
+RAG_BACKEND=local
+RAG_MCP_COMMAND=python
+RAG_MCP_ARGS=-m src.mcp_server.server
+RAG_MCP_CWD=D:\Dev\RAG\MODULAR-RAG-MCP-SERVER
+RAG_MCP_TOOL=query_knowledge_hub
+RAG_MCP_COLLECTION=knowledge_hub
+RAG_MCP_TIMEOUT_SECONDS=10
 ```
 
 常见配置方向：
@@ -418,11 +450,19 @@ python -m ruff check .
 python -m harness.runners.run_all --smoke
 ```
 
+检查外部 MCP RAG 连接：
+
+```powershell
+python scripts/check_mcp_rag.py --collection knowledge_hub --query "late arrival policy" --min-chunks 1
+```
+
+如果要防止误用非 wellness collection，可加 `--require-source docs/knowledge`，让诊断在没有命中目标知识域时返回非零退出码。
+
 ## Known limitations
 
 - 当前 eval dataset 是 181-case smoke 规模，还不是最终生产级回归集。
 - Memory store 是最小可测实现，尚未接入完整用户生命周期审计 UI。
-- RAG adapter 是本地 deterministic grounding 层，MCP-backed RAG adapter 仍是扩展点。
+- MCP-backed RAG adapter 已接入，但真实效果取决于 `RAG_MCP_COLLECTION` 是否指向包含 wellness 业务资料的 collection；诊断脚本会显示命中的 source。
 - 新 operations endpoint 已可用，但旧 Web/chat 流程尚未切换到新 runtime。
 
 ## 主要页面
