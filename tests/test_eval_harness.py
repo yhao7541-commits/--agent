@@ -99,6 +99,12 @@ def test_eval_harness_outputs_json_report_with_metrics():
     report = run_eval()
 
     assert report["case_count"] > 0
+    assert report["governance"]["case_count"] == report["case_count"]
+    assert report["governance"]["failed_case_count"] == 0
+    assert report["governance"]["failed_case_ids"] == []
+    assert report["governance"]["failed_thresholds"] == {}
+    assert report["governance"]["suite_counts"]["booking"] > 0
+    assert report["governance"]["suite_counts"]["rag"] > 0
     assert report["metrics"]["intent_accuracy"] >= 0.85
     assert report["metrics"]["slot_precision"] >= 0.85
     assert report["metrics"]["tool_selection_accuracy"] >= 0.85

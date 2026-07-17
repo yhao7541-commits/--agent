@@ -14,6 +14,12 @@ User: `我想明天下午3点约肩颈放松`
 
 Expected: the agent plans read tools and `create_booking`, but the gateway returns a confirmation request before any write succeeds.
 
+More realistic time expressions:
+
+- `我想明天下午3点半约肩颈放松` -> `time_window=15:30`
+- `我想后天上午10点约推拿` -> date is normalized to the day after tomorrow
+- `我想下周五晚上7点约按摩` -> date is normalized to next week's Friday
+
 ## 3. Confirmed Booking Executes Write
 
 Send the previous `confirmation_request.tool_name` and `confirmation_request.arguments` back with message `确认`.
@@ -26,8 +32,60 @@ User: `如果我迟到20分钟会怎么样？`
 
 Expected: `search_knowledge_base` runs and trace metadata includes source chunks from `booking_policy.md`.
 
+Local deterministic mode:
+
+```powershell
+$env:RAG_BACKEND="local"
+```
+
+MCP-backed mode:
+
+```powershell
+$env:RAG_BACKEND="mcp"
+$env:RAG_MCP_COMMAND="python"
+$env:RAG_MCP_ARGS="-m src.mcp_server.server"
+$env:RAG_MCP_CWD="D:\Dev\RAG\MODULAR-RAG-MCP-SERVER"
+$env:RAG_MCP_COLLECTION="wellness_service_ops"
+$env:RAG_MCP_TIMEOUT_SECONDS="45"
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1
+```
+
+Expected for the diagnostic: `ok=true`, `chunk_count >= 1`, and `chunks[].source` includes a wellness policy document such as `booking_policy.md`.
+
+Optional domain gate:
+
+```powershell
+python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1 --require-source booking_policy.md
+```
+
+Expected: this command exits zero only when the external MCP collection contains the wellness booking policy source.
+
 ## 5. Preference Creates Memory Proposal
 
 User: `我以后都喜欢安静一点的房间`
 
 Expected: a memory proposal is produced and `write_customer_preference` requires confirmation.
+
+## 6. Stored Preference Is Applied To Booking
+
+Confirm the memory proposal, then send:
+
+User: `我想明天下午3点约肩颈放松`
+
+Expected: the booking confirmation summary includes the quiet-room preference, `memory_used=true`, `applied_customer_memories[]` lists the stored preference, and trace metadata shows the loaded/applied memory counts.
+
+## 7. Trace Replay
+
+Set a trace path before running the operations request:
+
+```powershell
+$env:OPERATIONS_TRACE_STORE_PATH="data/traces.jsonl"
+```
+
+After the API response returns a `trace_id`, run:
+
+```powershell
+python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
+```
+
+Expected: replay shows the node sequence, confirmation interception, tool calls, RAG retrieval events, and final response summary in execution order.

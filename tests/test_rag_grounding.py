@@ -1,6 +1,23 @@
+import sys
+
 from agents.operations.graph import run_operations_turn
 from rag.citation import build_citation_metadata
 from rag.local_faiss_adapter import LocalKnowledgeAdapter
+from rag.mcp_rag_adapter import McpRagAdapter, StdioMcpToolClient
+from tools import knowledge_tools
+
+
+class FakeMcpClient:
+    def __init__(self, result=None, error: Exception | None = None):
+        self.result = result or {}
+        self.error = error
+        self.calls = []
+
+    def call_tool(self, tool_name: str, arguments: dict):
+        self.calls.append({"tool_name": tool_name, "arguments": arguments})
+        if self.error:
+            raise self.error
+        return self.result
 
 
 def test_local_adapter_returns_source_metadata_for_policy_query():
@@ -13,6 +30,140 @@ def test_local_adapter_returns_source_metadata_for_policy_query():
     assert chunks[0]["chunk_id"]
     assert chunks[0]["score"] > 0
     assert chunks[0]["text_preview"]
+
+
+def test_mcp_adapter_normalizes_structured_citations_without_default_collection():
+    client = FakeMcpClient(
+        {
+            "isError": False,
+            "content": [
+                {"type": "text", "text": "retrieval text"},
+                {
+                    "type": "text",
+                    "text": (
+                        "**References (JSON):**\n```json\n"
+                        '{"citations":[{"chunk_id":"policy:001","source":"policy.md",'
+                        '"score":0.91,"text_snippet":"late arrival policy"}],'
+                        '"metadata":{"query":"late policy","result_count":1}}\n```'
+                    ),
+                },
+            ],
+        }
+    )
+    adapter = McpRagAdapter(client=client, tool_name="query_knowledge_hub")
+
+    chunks = adapter.search("late policy", top_k=2)
+
+    assert client.calls == [
+        {
+            "tool_name": "query_knowledge_hub",
+            "arguments": {"query": "late policy", "top_k": 2},
+        }
+    ]
+    assert chunks == [
+        {
+            "source": "policy.md",
+            "chunk_id": "policy:001",
+            "score": 0.91,
+            "text_preview": "late arrival policy",
+        }
+    ]
+
+
+def test_mcp_adapter_passes_collection_only_when_configured():
+    client = FakeMcpClient({"isError": False, "content": []})
+    adapter = McpRagAdapter(
+        client=client,
+        tool_name="query_knowledge_hub",
+        collection="wellness_ops",
+    )
+
+    adapter.search("pricing", top_k=3)
+
+    assert client.calls[0]["arguments"] == {
+        "query": "pricing",
+        "top_k": 3,
+        "collection": "wellness_ops",
+    }
+
+
+def test_mcp_adapter_returns_empty_chunks_on_mcp_error():
+    adapter = McpRagAdapter(
+        client=FakeMcpClient(error=RuntimeError("mcp server unavailable")),
+        tool_name="query_knowledge_hub",
+    )
+
+    assert adapter.search("pricing", top_k=3) == []
+
+
+def test_stdio_mcp_client_calls_query_tool_and_normalizes_response(tmp_path):
+    server_script = tmp_path / "fake_mcp_server.py"
+    server_script.write_text(
+        """
+import json
+import sys
+
+for line in sys.stdin:
+    payload = json.loads(line)
+    method = payload.get("method")
+    if method == "initialize":
+        print(json.dumps({"jsonrpc": "2.0", "id": payload["id"], "result": {}}), flush=True)
+    elif method == "tools/call":
+        result = {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "**References (JSON):**\\n```json\\n"
+                    "{\\"citations\\":[{\\"chunk_id\\":\\"mcp:001\\","
+                    "\\"source\\":\\"mcp_policy.md\\",\\"score\\":0.87,"
+                    "\\"text_snippet\\":\\"mcp returned policy\\"}],"
+                    "\\"metadata\\":{\\"result_count\\":1}}\\n```",
+                }
+            ],
+            "isError": False,
+        }
+        print(json.dumps({"jsonrpc": "2.0", "id": payload["id"], "result": result}), flush=True)
+""",
+        encoding="utf-8",
+    )
+    client = StdioMcpToolClient(
+        command=sys.executable,
+        args=[str(server_script)],
+        timeout_seconds=3,
+    )
+    adapter = McpRagAdapter(client=client)
+
+    chunks = adapter.search("late policy", top_k=1)
+
+    assert chunks == [
+        {
+            "source": "mcp_policy.md",
+            "chunk_id": "mcp:001",
+            "score": 0.87,
+            "text_preview": "mcp returned policy",
+        }
+    ]
+
+
+def test_knowledge_tool_uses_mcp_adapter_when_backend_is_mcp(monkeypatch):
+    class FakeMcpRagAdapter:
+        def search(self, query: str, top_k: int = 3):
+            return [
+                {
+                    "source": "mcp_policy.md",
+                    "chunk_id": "mcp_policy:001",
+                    "score": 0.88,
+                    "text_preview": query,
+                }
+            ][:top_k]
+
+    monkeypatch.setenv("RAG_BACKEND", "mcp")
+    monkeypatch.setattr(knowledge_tools, "McpRagAdapter", FakeMcpRagAdapter)
+
+    arguments = type("Arguments", (), {"query": "late policy", "top_k": 1})()
+    result = knowledge_tools.search_knowledge_base(arguments, context=None)
+
+    assert result["chunks"][0]["source"] == "mcp_policy.md"
 
 
 def test_citation_metadata_keeps_query_and_chunks():

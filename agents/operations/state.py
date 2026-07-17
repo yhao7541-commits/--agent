@@ -12,6 +12,8 @@ class OperationsAgentState(TypedDict, total=False):
     booking_issue: dict[str, Any]
     missing_slots: list[str]
     customer_context: dict[str, Any]
+    memory_used: bool
+    applied_customer_memories: list[dict[str, Any]]
     retrieved_knowledge: list[dict[str, Any]]
     rag_citations: dict[str, Any]
     tool_plan: list[dict[str, Any]]

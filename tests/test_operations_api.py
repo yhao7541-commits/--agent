@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from api.operations import router
 from observability.trace_store import JsonlTraceStore
+from tools.customer_tools import reset_customer_memory_store
 
 
 def make_client():
@@ -51,6 +52,42 @@ def test_operations_chat_persists_trace_events_when_store_is_configured(tmp_path
     assert "initialize_turn" in nodes
     assert "finalize_turn" in nodes
     assert all(event.conversation_id == "conv_trace" for event in events)
+
+
+def test_operations_trace_endpoint_returns_events_and_replay(tmp_path, monkeypatch):
+    trace_path = tmp_path / "operations-traces.jsonl"
+    monkeypatch.setenv("OPERATIONS_TRACE_STORE_PATH", str(trace_path))
+    client = make_client()
+    chat_response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_trace_api",
+            "conversation_id": "conv_trace_api",
+            "message": "浣犲ソ",
+        },
+    )
+    trace_id = chat_response.json()["trace_id"]
+
+    response = client.get(f"/api/operations/traces/{trace_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trace_id"] == trace_id
+    assert body["conversation_id"] == "conv_trace_api"
+    assert body["events"]
+    assert body["events"][0]["node"] == "initialize_turn"
+    assert body["replay"].startswith(f"Trace: {trace_id}")
+    assert "raw_prompt" not in str(body)
+
+
+def test_operations_trace_endpoint_returns_controlled_404_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("OPERATIONS_TRACE_STORE_PATH", raising=False)
+    client = make_client()
+
+    response = client.get("/api/operations/traces/missing_trace")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Trace store is not configured."}
 
 
 def test_operations_chat_returns_confirmation_request_for_write_action():
@@ -224,6 +261,51 @@ def test_operations_chat_exposes_memory_proposal_confirmation():
     assert body["memory_proposals"][0]["content"] == "喜欢安静房间"
     assert body["confirmation_required"] is True
     assert body["confirmation_request"]["tool_name"] == "write_customer_preference"
+    assert "raw_prompt" not in body
+
+
+def test_operations_chat_exposes_applied_customer_memory_for_booking():
+    reset_customer_memory_store()
+    client = make_client()
+
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_memory_api",
+            "conversation_id": "conv_memory_api",
+            "message": "我以后都喜欢安静一点的房间",
+        },
+    ).json()
+    client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_memory_api",
+            "conversation_id": "conv_memory_api",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
+        },
+    )
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_memory_api",
+            "conversation_id": "conv_memory_api_booking",
+            "message": "我想明天下午3点约肩颈放松",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["memory_used"] is True
+    assert "喜欢安静房间" in body["customer_context"]["known_preferences"]
+    assert any(
+        memory["content"] == "喜欢安静房间"
+        and memory["applied_to"] == "booking_slots.special_requests"
+        for memory in body["applied_customer_memories"]
+    )
     assert "raw_prompt" not in body
 
 

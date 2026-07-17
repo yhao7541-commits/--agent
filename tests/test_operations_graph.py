@@ -1,6 +1,7 @@
 import agents.operations.nodes as operation_nodes
 from agents.operations.graph import build_operations_graph, run_operations_turn
 from agents.operations.nodes import output_policy_check
+from datetime import datetime, timedelta, timezone
 from tools.base import ToolDefinition, ToolPermission
 from tools.customer_tools import reset_customer_memory_store
 from tools.registry import build_default_tool_registry
@@ -10,6 +11,14 @@ from tools.schemas import (
     FindAvailableStaffInput,
     FindAvailableStaffOutput,
 )
+
+LOCAL_TIMEZONE = timezone(timedelta(hours=8))
+
+
+def _next_weekday_date(weekday: int) -> str:
+    today = datetime.now(LOCAL_TIMEZONE).date()
+    start_of_next_week = today + timedelta(days=(7 - today.weekday()))
+    return (start_of_next_week + timedelta(days=weekday)).strftime("%Y-%m-%d")
 
 
 def test_operations_graph_compiles():
@@ -107,6 +116,56 @@ def test_fuzzy_booking_time_is_preserved_as_range():
     assert result["intent"] == "booking"
     assert result["missing_slots"] == []
     assert result["booking_slots"]["time_window"] == "12:00-18:00"
+    assert result["confirmation_required"] is True
+
+
+def test_half_hour_booking_time_is_normalized():
+    result = run_operations_turn(
+        {
+            "user_id": "user_half_hour",
+            "conversation_id": "conv_half_hour",
+            "message": "我想明天下午3点半约肩颈放松",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["missing_slots"] == []
+    assert result["booking_slots"]["time_window"] == "15:30"
+    assert result["booking_slot_sources"]["time_window"] == "user"
+    assert result["confirmation_required"] is True
+
+
+def test_day_after_tomorrow_booking_date_is_normalized():
+    result = run_operations_turn(
+        {
+            "user_id": "user_day_after_tomorrow",
+            "conversation_id": "conv_day_after_tomorrow",
+            "message": "我想后天上午10点约推拿",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["missing_slots"] == []
+    assert result["booking_slots"]["date"] == (
+        datetime.now(LOCAL_TIMEZONE) + timedelta(days=2)
+    ).strftime("%Y-%m-%d")
+    assert result["booking_slots"]["time_window"] == "10:00"
+    assert result["confirmation_required"] is True
+
+
+def test_next_weekday_booking_date_is_normalized():
+    result = run_operations_turn(
+        {
+            "user_id": "user_next_weekday",
+            "conversation_id": "conv_next_weekday",
+            "message": "我想下周五晚上7点约按摩",
+        }
+    )
+
+    assert result["intent"] == "booking"
+    assert result["missing_slots"] == []
+    assert result["booking_slots"]["date"] == _next_weekday_date(4)
+    assert result["booking_slots"]["time_window"] == "19:00"
     assert result["confirmation_required"] is True
 
 
@@ -407,6 +466,22 @@ def test_booking_uses_stored_customer_preference_in_confirmation_summary():
     assert "喜欢安静房间" in result["customer_context"]["known_preferences"]
     assert "安静" in result["confirmation_request"]["summary"]["special_requests"]
     assert "memory" in result["booking_slot_sources"]["special_requests"]
+    assert result["memory_used"] is True
+    assert any(
+        memory["content"] == "喜欢安静房间"
+        and memory["applied_to"] == "booking_slots.special_requests"
+        for memory in result["applied_customer_memories"]
+    )
+    assert any(
+        event["node"] == "load_customer_context"
+        and event["metadata"].get("memory_count") == 1
+        for event in result["trace_events"]
+    )
+    assert any(
+        event["node"] == "extract_booking_slots"
+        and event["metadata"].get("memory_used") is True
+        for event in result["trace_events"]
+    )
 
 
 def test_confirmed_memory_delete_removes_preference_from_future_context():

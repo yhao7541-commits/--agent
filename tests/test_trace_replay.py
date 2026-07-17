@@ -61,6 +61,48 @@ def test_format_replay_prints_ordered_node_summary():
     assert "2. classify_intent: booking, 12ms" in output
 
 
+def test_format_replay_includes_governance_summary():
+    events = [
+        TraceEvent(
+            trace_id="trace_001",
+            conversation_id="conv_001",
+            node="classify_intent",
+            event_type="node_end",
+            metadata={"intent": "consultation"},
+        ),
+        TraceEvent(
+            trace_id="trace_001",
+            conversation_id="conv_001",
+            node="search_knowledge_base",
+            event_type="rag_retrieval_completed",
+            metadata={"chunks": [{"source": "booking_policy.md"}]},
+        ),
+        TraceEvent(
+            trace_id="trace_001",
+            conversation_id="conv_001",
+            node="tool_gateway",
+            event_type="tool_error",
+            metadata={"tool_name": "create_booking"},
+            error={"code": "confirmation_required"},
+        ),
+        TraceEvent(
+            trace_id="trace_001",
+            conversation_id="conv_001",
+            node="execute_tools",
+            event_type="escalation_triggered",
+            metadata={"reason": "tool_failure"},
+        ),
+    ]
+
+    output = format_replay(events)
+
+    assert "Conversation: conv_001" in output
+    assert (
+        "Summary: events=4, errors=1, tool_events=1, rag_used=true, escalated=true"
+        in output
+    )
+
+
 def test_format_replay_includes_tool_failure_details():
     events = [
         TraceEvent(

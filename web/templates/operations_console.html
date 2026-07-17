@@ -205,6 +205,48 @@
             background: #fff1ef;
         }
 
+        .timeline {
+            min-height: 74px;
+            max-height: 260px;
+            overflow: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #f7f9fc;
+        }
+
+        .timeline li {
+            display: grid;
+            grid-template-columns: 28px minmax(0, 1fr);
+            gap: 10px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .timeline li:last-child {
+            border-bottom: 0;
+        }
+
+        .timeline .index {
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .timeline .node {
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .timeline .meta {
+            margin-top: 2px;
+            color: var(--muted);
+            word-break: break-word;
+        }
+
         @media (max-width: 900px) {
             .shell {
                 padding: 16px;
@@ -287,6 +329,13 @@
                     <pre id="trace-json">{}</pre>
                 </section>
 
+                <section class="panel" id="trace-timeline-panel">
+                    <h2>Trace Timeline</h2>
+                    <ol class="timeline" id="trace-timeline">
+                        <li><span class="index">-</span><span>No persisted trace loaded.</span></li>
+                    </ol>
+                </section>
+
                 <section class="panel" id="escalation-panel">
                     <h2>Escalation</h2>
                     <div id="escalation-status"><span class="badge">None</span></div>
@@ -318,11 +367,17 @@
                 planned: data.tool_calls || [],
                 executed: data.executed_tools || []
             });
-            $("memory-json").textContent = asJson(data.memory_proposals || []);
+            $("memory-json").textContent = asJson({
+                proposals: data.memory_proposals || [],
+                customer_context: data.customer_context || {},
+                memory_used: data.memory_used || false,
+                applied_customer_memories: data.applied_customer_memories || []
+            });
             $("rag-json").textContent = asJson(data.rag_citations || {});
             $("trace-json").textContent = asJson({
                 trace_id: data.trace_id,
                 rag_used: data.rag_used,
+                memory_used: data.memory_used,
                 missing_slots: data.missing_slots || []
             });
             $("confirmation-status").innerHTML = data.confirmation_required
@@ -331,6 +386,78 @@
             $("escalation-status").innerHTML = data.escalated
                 ? '<span class="badge bad">Escalated</span>'
                 : '<span class="badge good">Not escalated</span>';
+        }
+
+        function renderTraceTimeline(events) {
+            const timeline = $("trace-timeline");
+            timeline.innerHTML = "";
+            if (!events || events.length === 0) {
+                const item = document.createElement("li");
+                const index = document.createElement("span");
+                index.className = "index";
+                index.textContent = "-";
+                const body = document.createElement("span");
+                body.textContent = "Trace not found.";
+                item.append(index, body);
+                timeline.appendChild(item);
+                return;
+            }
+            events.forEach((event, position) => {
+                const item = document.createElement("li");
+                const index = document.createElement("span");
+                index.className = "index";
+                index.textContent = String(position + 1);
+                const body = document.createElement("span");
+                const node = document.createElement("div");
+                node.className = "node";
+                node.textContent = `${event.node || "-"} · ${event.event_type || "event"}`;
+                const meta = document.createElement("div");
+                meta.className = "meta";
+                meta.textContent = traceEventSummary(event);
+                body.append(node, meta);
+                item.append(index, body);
+                timeline.appendChild(item);
+            });
+        }
+
+        function traceEventSummary(event) {
+            const metadata = event.metadata || {};
+            if (event.error) {
+                return event.error.code || "error";
+            }
+            if (metadata.tool_name) {
+                return `${metadata.tool_name} · ${metadata.status || "ok"}`;
+            }
+            if (metadata.intent) {
+                return `intent=${metadata.intent}`;
+            }
+            if (metadata.status) {
+                return `status=${metadata.status}`;
+            }
+            return `${event.latency_ms || 0}ms`;
+        }
+
+        async function loadTrace(traceId) {
+            if (!traceId) {
+                renderTraceTimeline([]);
+                return;
+            }
+            const response = await fetch(`/api/operations/traces/${encodeURIComponent(traceId)}`);
+            if (!response.ok) {
+                renderTraceTimeline([]);
+                $("trace-json").textContent = asJson({
+                    trace_id: traceId,
+                    status: "not persisted"
+                });
+                return;
+            }
+            const data = await response.json();
+            renderTraceTimeline(data.events || []);
+            $("trace-json").textContent = asJson({
+                trace_id: data.trace_id,
+                replay: data.replay,
+                events: data.events || []
+            });
         }
 
         async function runTurn(payload) {
@@ -346,6 +473,7 @@
             }
             const data = await response.json();
             render(data);
+            await loadTrace(data.trace_id);
             setStatus("Ready", "good");
             return data;
         }

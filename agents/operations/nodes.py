@@ -67,6 +67,8 @@ def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
     state.setdefault("booking_issue", {})
     state.setdefault("missing_slots", [])
     state.setdefault("customer_context", {})
+    state.setdefault("memory_used", False)
+    state.setdefault("applied_customer_memories", [])
     state.setdefault("retrieved_knowledge", [])
     state.setdefault("rag_citations", {})
     state.setdefault("tool_plan", [])
@@ -211,7 +213,15 @@ def load_customer_context(state: OperationsAgentState) -> OperationsAgentState:
     )
     state["trace_events"] = context.trace_events
     state["customer_context"] = result.output if result.success else fallback_context
-    return append_trace(state, "load_customer_context", {"loaded": True})
+    return append_trace(
+        state,
+        "load_customer_context",
+        {
+            "loaded": result.success,
+            "memory_count": len(state["customer_context"].get("memories", [])),
+            "known_preference_count": len(state["customer_context"].get("known_preferences", [])),
+        },
+    )
 
 
 def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
@@ -268,16 +278,14 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
         slots["service_type"] = "按摩"
         _mark_slot_source(slot_sources, "service_type", "user")
 
-    if "明天" in message:
-        slots["date"] = (datetime.now(LOCAL_TIMEZONE) + timedelta(days=1)).strftime("%Y-%m-%d")
-        _mark_slot_source(slot_sources, "date", "user")
-    elif "今天" in message:
-        slots["date"] = datetime.now(LOCAL_TIMEZONE).strftime("%Y-%m-%d")
+    normalized_date = _normalize_booking_date(message)
+    if normalized_date:
+        slots["date"] = normalized_date
         _mark_slot_source(slot_sources, "date", "user")
 
     time_match = _select_time_match(message)
     if time_match:
-        slots["time_window"] = _normalize_hour(time_match.group(1), time_match.group(2))
+        slots["time_window"] = _normalize_time_match(time_match)
         _mark_slot_source(slot_sources, "time_window", "user")
     elif "上午" in message:
         slots["time_window"] = "09:00-12:00"
@@ -306,25 +314,42 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
             "热闹一点的房间",
         )
         _mark_slot_source(slot_sources, "special_requests", "user")
-    for preference in state.get("customer_context", {}).get("known_preferences", []):
+    applied_memories = list(state.get("applied_customer_memories", []))
+    for memory in _customer_memory_candidates(state):
+        preference = memory.get("content", "")
         if "安静" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "安静一点的房间",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
         if "热闹" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "热闹一点的房间",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
         if "大力度" in preference:
             slots["special_requests"] = _merge_special_request(
                 slots.get("special_requests"),
                 "避免大力度",
             )
             _mark_slot_source(slot_sources, "special_requests", "memory")
+            _append_applied_customer_memory(
+                applied_memories,
+                memory,
+                "booking_slots.special_requests",
+            )
     if "李雷" in message:
         slots["preferred_staff"] = "李雷"
         _mark_slot_source(slot_sources, "preferred_staff", "user")
@@ -356,11 +381,19 @@ def extract_booking_slots(state: OperationsAgentState) -> OperationsAgentState:
 
     state["booking_slots"] = slots
     state["booking_slot_sources"] = slot_sources
+    state["applied_customer_memories"] = applied_memories
+    state["memory_used"] = bool(applied_memories)
     state["missing_slots"] = missing
     return append_trace(
         state,
         "extract_booking_slots",
-        {"slots": slots, "slot_sources": slot_sources, "missing_slots": missing},
+        {
+            "slots": slots,
+            "slot_sources": slot_sources,
+            "missing_slots": missing,
+            "memory_used": state["memory_used"],
+            "applied_memory_count": len(applied_memories),
+        },
     )
 
 
@@ -675,7 +708,40 @@ def finalize_turn(state: OperationsAgentState) -> OperationsAgentState:
     )
 
 
-def _normalize_hour(period: str | None, raw_hour: str) -> str:
+def _normalize_booking_date(message: str) -> str | None:
+    today = datetime.now(LOCAL_TIMEZONE).date()
+    if "大后天" in message:
+        return (today + timedelta(days=3)).strftime("%Y-%m-%d")
+    if "后天" in message:
+        return (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    if "明天" in message:
+        return (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    if "今天" in message:
+        return today.strftime("%Y-%m-%d")
+
+    match = re.search(r"下(?:周|星期)([一二三四五六日天])", message)
+    if not match:
+        return None
+
+    weekdays = {
+        "一": 0,
+        "二": 1,
+        "三": 2,
+        "四": 3,
+        "五": 4,
+        "六": 5,
+        "日": 6,
+        "天": 6,
+    }
+    start_of_next_week = today + timedelta(days=(7 - today.weekday()))
+    return (start_of_next_week + timedelta(days=weekdays[match.group(1)])).strftime("%Y-%m-%d")
+
+
+def _normalize_time_match(match: re.Match[str]) -> str:
+    return _normalize_hour(match.group(1), match.group(2), match.group(3))
+
+
+def _normalize_hour(period: str | None, raw_hour: str, raw_minute: str | None = None) -> str:
     chinese_numbers = {
         "一": 1,
         "二": 2,
@@ -692,11 +758,23 @@ def _normalize_hour(period: str | None, raw_hour: str) -> str:
     hour = chinese_numbers.get(raw_hour, int(raw_hour) if raw_hour.isdigit() else 0)
     if period in {"下午", "晚上"} and hour < 12:
         hour += 12
-    return f"{hour:02d}:00"
+    minute = _normalize_minute(raw_minute)
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _normalize_minute(raw_minute: str | None) -> int:
+    if not raw_minute:
+        return 0
+    if raw_minute == "半":
+        return 30
+    digits = raw_minute.removesuffix("分")
+    return int(digits) if digits.isdigit() else 0
 
 
 def _select_time_match(message: str) -> re.Match[str] | None:
-    pattern = re.compile(r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(?![的儿也])")
+    pattern = re.compile(
+        r"(上午|下午|晚上)?\s*(\d{1,2}|一|二|两|三|四|五|六|七|八|九|十)点(半|[0-5]?\d分?)?(?![的儿也])"
+    )
     for match in pattern.finditer(message):
         if _is_contextual_time_match(message, match):
             return match
@@ -725,6 +803,47 @@ def _merge_special_request(existing: str | None, addition: str) -> str:
     if addition in existing:
         return existing
     return f"{existing}；{addition}"
+
+
+def _customer_memory_candidates(state: OperationsAgentState) -> list[dict[str, Any]]:
+    context = state.get("customer_context", {})
+    memories = [memory for memory in context.get("memories", []) if memory.get("content")]
+    if memories:
+        return memories
+    return [
+        {
+            "memory_id": "",
+            "type": "preference",
+            "content": preference,
+            "sensitivity": "normal",
+        }
+        for preference in context.get("known_preferences", [])
+        if preference
+    ]
+
+
+def _append_applied_customer_memory(
+    applied_memories: list[dict[str, Any]],
+    memory: dict[str, Any],
+    applied_to: str,
+) -> None:
+    record = {
+        "memory_id": memory.get("memory_id") or memory.get("id", ""),
+        "type": memory.get("type", "preference"),
+        "content": memory.get("content", ""),
+        "sensitivity": memory.get("sensitivity", "normal"),
+        "applied_to": applied_to,
+    }
+    if not record["content"]:
+        return
+
+    key = (record["memory_id"], record["content"], record["applied_to"])
+    if any(
+        (existing.get("memory_id"), existing.get("content"), existing.get("applied_to")) == key
+        for existing in applied_memories
+    ):
+        return
+    applied_memories.append(record)
 
 
 def _mark_slot_source(sources: dict[str, str], field: str, source: str) -> None:
