@@ -1,5 +1,16 @@
 # Local Service Operations Agent
 
+## 30 秒速览
+
+| 面试官先看 | 内容 |
+| --- | --- |
+| 项目解决什么问题 | 本地生活服务门店的咨询、预约、排班冲突、客户偏好记忆和人工确认分散在人工前台流程里，容易漏信息、误写预约或无法追踪决策来源。 |
+| 目标用户是谁 | 需要处理预约调度、服务咨询、技师排班和客户偏好的本地生活服务门店运营人员；终端顾客通过中文首页操作台发起咨询或预约。 |
+| 核心流程是什么 | 用户输入咨询或预约需求 → `OperationsAgent` 识别意图和槽位 → `ToolGateway` 调用知识库、排班、预约、记忆工具 → 写操作先返回确认请求 → trace/replay 记录过程。 |
+| 如何启动或查看演示 | 运行 `python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload`，打开首页用户操作台 `http://127.0.0.1:8000`；运营控制台在 `/operations`，记忆管理在 `/memory`。 |
+| 如何评测 | 运行 `python -m harness.runners.run_all --smoke`，当前 smoke 数据集覆盖 184 条确定性用例，检查意图、槽位、确认拦截、RAG、记忆、安全策略和人工升级。 |
+| 已知限制 | 当前评测仍是 smoke 规模；记忆管理还不是完整 RBAC/审批队列/合规报表；旧 Web/chat 流程仍保留兼容入口，尚未完全切到新的 operations runtime。 |
+
 Local Service Operations Agent 是一个面向本地生活服务门店的状态化 Agent 系统。项目基于 FastAPI、LangGraph、LangChain、FAISS、SQLite 和单一 Operations Agent 编排，实现了服务咨询、多轮预约、员工匹配、排班冲突处理、客户偏好记忆、基于 RAG 的政策问答、人工确认、Tool Gateway 受控工具调用、trace 回放和回归评测骨架。
 
 这个项目的核心目标不是只做一个普通的预约表单，而是把本地服务运营中的高频工作自动化：理解用户想咨询还是预约，判断服务偏好，匹配合适员工，检查可用时间，在写操作前要求明确确认，并在必要时结合知识库、历史行为和偏好数据给出更可靠的服务建议。
