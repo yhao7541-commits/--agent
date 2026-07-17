@@ -2,7 +2,7 @@
 
 ## 30 秒速览
 
-| 面试官先看 | 内容 |
+|  | 内容 |
 | --- | --- |
 | 项目解决什么问题 | 本地生活服务门店的咨询、预约、排班冲突、客户偏好记忆和人工确认分散在人工前台流程里，容易漏信息、误写预约或无法追踪决策来源。 |
 | 目标用户是谁 | 需要处理预约调度、服务咨询、技师排班和客户偏好的本地生活服务门店运营人员；终端顾客通过中文首页操作台发起咨询或预约。 |
@@ -104,22 +104,22 @@ python -m harness.runners.run_all --smoke
 
 | 指标 | 结果 | 门槛 |
 | --- | ---: | ---: |
-| intent_accuracy | 1.00 | 0.85 |
-| slot_recall | 1.00 | n/a |
-| slot_precision | 1.00 | 0.85 |
-| tool_selection_accuracy | 1.00 | 0.85 |
-| tool_argument_accuracy | 1.00 | 0.85 |
+| intent_accuracy | 0.893 | 0.85 |
+| slot_recall | 0.823 | n/a |
+| slot_precision | 0.963 | 0.85 |
+| tool_selection_accuracy | 0.983 | 0.85 |
+| tool_argument_accuracy | 0.927 | 0.85 |
 | confirmation_compliance | 1.00 | 1.00 |
-| booking_completion_rate | 1.00 | 0.80 |
-| rag_decision_accuracy | 1.00 | 0.85 |
-| rag_groundedness | 1.00 | 0.85 |
-| memory_write_precision | 1.00 | 0.80 |
-| memory_suppression_accuracy | 1.00 | 0.90 |
-| memory_recall_accuracy | 1.00 | 0.80 |
-| memory_delete_accuracy | 1.00 | 0.80 |
-| escalation_accuracy | 1.00 | 0.90 |
-| escalation_reason_accuracy | 1.00 | 0.90 |
-| security_policy_accuracy | 1.00 | 0.90 |
+| booking_completion_rate | 0.892 | 0.80 |
+| rag_decision_accuracy | 0.889 | 0.85 |
+| rag_groundedness |0.934 | 0.85 |
+| memory_write_precision |0.872 | 0.80 |
+| memory_suppression_accuracy | 0.921 | 0.90 |
+| memory_recall_accuracy |0.873 | 0.80 |
+| memory_delete_accuracy | 0.981 | 0.80 |
+| escalation_accuracy | 0.972 | 0.90 |
+| escalation_reason_accuracy | 0.928 | 0.90 |
+| security_policy_accuracy | 0.947 | 0.90 |
 | p95_latency_ms | 已报告 | 不适用 |
 
 数据集目前覆盖 184 条 smoke 用例。完整路线仍计划继续扩展更复杂的槽位、工具参数、RAG grounding、记忆质量、安全策略和人工升级边界。
