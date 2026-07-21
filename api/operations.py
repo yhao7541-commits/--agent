@@ -2,12 +2,13 @@ from typing import Any
 import os
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agents.operations import OperationsAgent
 from observability.replay import format_replay
 from observability.trace_schema import TraceEvent
 from observability.trace_store import JsonlTraceStore
+from security.guardrails import MAX_CONFIRMATION_ID_BYTES
 
 
 router = APIRouter(prefix="/api/operations", tags=["Operations Agent"])
@@ -25,6 +26,32 @@ class OperationsChatRequest(BaseModel):
     confirmed_tool_name: str | None = None
     confirmed_tool_arguments: dict[str, Any] = Field(default_factory=dict)
     confirmation_token: str | None = None
+
+    @field_validator("user_id", "conversation_id", mode="before")
+    @classmethod
+    def replace_invalid_utf8_identifier(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Identifier must contain valid UTF-8 text.",
+                ) from None
+        return value
+
+    @field_validator("user_id", "conversation_id")
+    @classmethod
+    def validate_identifier_size(cls, value: str) -> str:
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("Identifier must contain valid UTF-8 text.") from exc
+        if len(encoded) > MAX_CONFIRMATION_ID_BYTES:
+            raise ValueError(
+                f"Identifier must be at most {MAX_CONFIRMATION_ID_BYTES} UTF-8 bytes."
+            )
+        return value
 
 
 class OperationsChatResponse(BaseModel):
@@ -56,7 +83,7 @@ class OperationsTraceResponse(BaseModel):
 
 @router.post("/chat", response_model=OperationsChatResponse)
 async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
-    result = operations_agent.run_turn(request.model_dump())
+    result = await operations_agent.arun_turn(request.model_dump(exclude_unset=True))
     _persist_trace_events(result)
     return OperationsChatResponse(
         reply=result.get("reply", ""),

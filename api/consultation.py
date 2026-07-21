@@ -19,7 +19,7 @@ operations_agent = OperationsAgent()
 async def ask_consultation(request: ConsultationRequest):
     """提交咨询问题。"""
     try:
-        result = operations_agent.run_turn(
+        result = await operations_agent.arun_turn(
             {
                 "user_id": request.user_id,
                 "conversation_id": f"consultation_{uuid.uuid4().hex[:8]}",

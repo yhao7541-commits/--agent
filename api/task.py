@@ -20,7 +20,7 @@ async def classify_task(request: TaskClassificationRequest):
     """分类任务并返回本轮 Operations 状态摘要。"""
     try:
         context = request.context or {}
-        result = operations_agent.run_turn(
+        result = await operations_agent.arun_turn(
             {
                 "user_id": context.get("user_id", "local_user"),
                 "conversation_id": context.get("conversation_id", f"task_{uuid.uuid4().hex[:8]}"),

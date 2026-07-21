@@ -1,29 +1,51 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import os
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Literal
 
 from memory.memory_proposals import extract_memory_proposals
 from rag.citation import build_citation_metadata
 from security.guardrails import (
     build_confirmation_token,
+    consume_confirmation_token,
     detect_prompt_injection,
-    is_valid_confirmation_token,
 )
 from tools.customer_tools import get_customer_memory_store
 from tools.gateway import ToolGateway
 from tools.registry import build_default_tool_registry
 from tools.schemas import ToolExecutionContext
 
+from .decision_client import LangChainDecisionClient
+from .decision_engine import (
+    DecisionEngineResult,
+    DecisionError,
+    DecisionErrorCode,
+    HybridDecisionEngine,
+)
+from .decision_models import DecisionMetadata, DecisionSettings, ModelDecision
+from .decision_prompt import build_initial_prompt
 from .state import OperationsAgentState
 
 
 BOOKING_KEYWORDS = ("约", "预约", "改约", "取消", "安排")
 CONSULTATION_KEYWORDS = ("迟到", "价格", "多少钱", "政策", "服务", "项目", "适合", "注意", "员工", "技师", "手法")
-MEDICAL_ESCALATION_KEYWORDS = ("受伤", "很疼", "疼痛", "医疗", "医生", "拉伤")
-REFUND_ESCALATION_KEYWORDS = ("退款", "投诉", "服务很差", "争议")
+MEDICAL_ESCALATION_KEYWORDS = (
+    "受伤",
+    "很疼",
+    "疼痛",
+    "医疗",
+    "医生",
+    "拉伤",
+    "急救",
+    "胸痛",
+    "呼吸困难",
+    "昏厥",
+    "流血",
+)
 MEMORY_KEYWORDS = ("喜欢", "不喜欢", "过敏", "不要营销", "别营销")
 MEMORY_DELETE_KEYWORDS = ("删除", "忘记", "不要记", "别记")
 BOOKING_SLOT_UPDATE_KEYWORDS = ("今天", "明天", "上午", "下午", "晚上", "点", "分钟", "安静")
@@ -33,6 +55,28 @@ BOOKING_OPERATION_TOOLS = BOOKING_READ_TOOLS | BOOKING_WRITE_TOOLS
 BOOKING_TOOL_FAILURE_ESCALATION_THRESHOLD = 2
 MEMORY_WRITE_TOOLS = {"write_customer_preference", "delete_customer_memory"}
 LOCAL_TIMEZONE = timezone(timedelta(hours=8))
+CONFIRMABLE_WRITE_TOOLS = BOOKING_WRITE_TOOLS | MEMORY_WRITE_TOOLS
+CONFIRMED_TOOL_INTENTS = {
+    "create_booking": "booking",
+    "reschedule_booking": "reschedule",
+    "cancel_booking": "cancel",
+    "write_customer_preference": "memory",
+    "delete_customer_memory": "delete_memory",
+}
+HARD_GUARDRAIL_REASONS = {
+    "prompt_injection",
+    "confirmation_bypass_attempt",
+    "medical_concern",
+    "refund_dispute",
+}
+MAX_RISK_FLAGS = 8
+MAX_RISK_FLAG_LENGTH = 64
+CONFIRMATION_INPUT_FIELDS = (
+    "confirmation_decision",
+    "confirmed_tool_name",
+    "confirmed_tool_arguments",
+    "confirmation_token",
+)
 
 
 def append_trace(
@@ -60,27 +104,187 @@ def append_trace(
 
 
 def initialize_turn(state: OperationsAgentState) -> OperationsAgentState:
-    state.setdefault("trace_id", str(uuid.uuid4()))
+    state["trace_id"] = str(uuid.uuid4())
     state.setdefault("user_id", "local_user")
     state.setdefault("conversation_id", state["trace_id"])
     state.setdefault("message", "")
     state.setdefault("booking_slots", {})
-    state.setdefault("booking_issue", {})
-    state.setdefault("missing_slots", [])
-    state.setdefault("customer_context", {})
-    state.setdefault("memory_used", False)
-    state.setdefault("applied_customer_memories", [])
-    state.setdefault("retrieved_knowledge", [])
-    state.setdefault("rag_citations", {})
-    state.setdefault("tool_plan", [])
-    state.setdefault("tool_results", [])
-    state.setdefault("confirmation_required", False)
-    state.setdefault("confirmation_request", {})
-    state.setdefault("memory_proposals", [])
-    state.setdefault("errors", [])
-    state.setdefault("rag_used", False)
-    state.setdefault("escalated", False)
+    state.setdefault("booking_slot_sources", {})
+    state["booking_issue"] = {}
+    state["missing_slots"] = []
+    state["customer_context"] = {}
+    state["memory_used"] = False
+    state["applied_customer_memories"] = []
+    state["retrieved_knowledge"] = []
+    state["rag_citations"] = {}
+    state["tool_plan"] = []
+    state["tool_results"] = []
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+    state["memory_proposals"] = []
+    state["errors"] = []
+    state["rag_used"] = False
+    state["escalated"] = False
+    state["escalation"] = {}
+    state["policy_violation"] = {}
+    state["reply"] = ""
+    state["intent"] = ""
+    state["confidence"] = 0.0
+    state["model_decision"] = {}
+    state["decision_metadata"] = {}
+    state["ambiguities"] = []
+    state["decision_source"] = ""
+    state["decision_errors"] = []
+    state["decision_route"] = ""
+    state["trace_events"] = []
     return append_trace(state, "initialize_turn", {"status": "ok"})
+
+
+def validate_confirmation(state: OperationsAgentState) -> OperationsAgentState:
+    if state.get("confirmation_decision") == "rejected":
+        state["intent"] = "confirmation_rejected"
+        state["confidence"] = 1.0
+        state["decision_source"] = "confirmation_rejected"
+        state["decision_metadata"] = DecisionMetadata(
+            source="confirmation_rejected"
+        ).model_dump()
+        state["decision_errors"] = []
+        state["ambiguities"] = []
+        state["decision_route"] = "confirmation_rejected"
+        state["model_decision"] = {}
+        state["confirmation_required"] = False
+        state["confirmation_request"] = {}
+        state["tool_plan"] = []
+        state["tool_results"] = []
+        state["escalated"] = False
+        state["escalation"] = {}
+        state["policy_violation"] = {}
+        state["booking_issue"] = {}
+        return append_trace(
+            state,
+            "validate_confirmation",
+            {"source": "confirmation_rejected"},
+        )
+
+    if not _has_confirmation_metadata(state):
+        return append_trace(
+            state,
+            "validate_confirmation",
+            {"source": "ordinary"},
+        )
+
+    if _has_unsafe_confirmed_tool_request(state):
+        _force_escalation(
+            state,
+            reason="unsafe_tool_confirmation",
+            requested_action="manual_tool_confirmation_review",
+            policy_metadata={"tool_name": _bounded_text(state.get("confirmed_tool_name"))},
+        )
+        return append_trace(
+            state,
+            "validate_confirmation",
+            {"source": "forced_escalation", "reason": "unsafe_tool_confirmation"},
+            event_type="policy_violation",
+        )
+
+    tool_name = state["confirmed_tool_name"]
+    intent = CONFIRMED_TOOL_INTENTS[tool_name]
+    state["intent"] = intent
+    state["confidence"] = 1.0
+    state["decision_source"] = "confirmed_action"
+    state["decision_metadata"] = DecisionMetadata(source="confirmed_action").model_dump()
+    state["decision_errors"] = []
+    state["ambiguities"] = []
+    state["decision_route"] = "booking" if intent in {"booking", "reschedule", "cancel"} else "memory"
+    state["model_decision"] = {}
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+    state["tool_plan"] = []
+    state["tool_results"] = []
+    state["escalated"] = False
+    state["escalation"] = {}
+    state["policy_violation"] = {}
+    state["booking_issue"] = {}
+    state["missing_slots"] = []
+    if tool_name in BOOKING_WRITE_TOOLS:
+        state["booking_slots"] = dict(state["confirmed_tool_arguments"])
+        state["booking_slot_sources"] = {
+            field: "confirmed_tool_arguments" for field in state["booking_slots"]
+        }
+    return append_trace(
+        state,
+        "validate_confirmation",
+        {"source": "confirmed_action", "intent": intent},
+    )
+
+
+def input_guardrail(state: OperationsAgentState) -> OperationsAgentState:
+    classified = deepcopy(state)
+    classify_intent(classified)
+    reason = classified.get("escalation", {}).get("reason")
+    if reason not in HARD_GUARDRAIL_REASONS:
+        return append_trace(state, "input_guardrail", {"status": "ok"})
+
+    _force_escalation(
+        state,
+        reason=reason,
+        requested_action=classified["escalation"]["requested_action"],
+    )
+    return append_trace(
+        state,
+        "input_guardrail",
+        {"source": "forced_escalation", "reason": reason},
+        event_type="policy_violation",
+    )
+
+
+def decide_request(
+    state: OperationsAgentState,
+    decision_engine: HybridDecisionEngine | None = None,
+) -> OperationsAgentState:
+    try:
+        settings = DecisionSettings.from_env()
+    except ValueError:
+        if os.getenv("OPERATIONS_DECISION_MODE", "rules").strip().lower() == "rules":
+            return _apply_decision_result(
+                state,
+                _rule_engine_result(state, source="rules"),
+            )
+        return _apply_decision_result(
+            state,
+            _rule_engine_result(
+                state,
+                source="rule_fallback",
+                fallback_reason="configuration_error",
+            ),
+        )
+
+    if settings.mode == "rules":
+        result = _rule_engine_result(state, source="rules")
+    else:
+        try:
+            prompt = build_initial_prompt(
+                message=state.get("message", ""),
+                booking_slots=state.get("booking_slots", {}),
+                booking_slot_sources=state.get("booking_slot_sources", {}),
+                local_date=datetime.now(LOCAL_TIMEZONE).date().isoformat(),
+                timezone="Asia/Shanghai",
+            )
+        except (TypeError, ValueError):
+            result = _rule_engine_result(
+                state,
+                source="rule_fallback",
+                fallback_reason="business_validation_error",
+            )
+        else:
+            engine = decision_engine or HybridDecisionEngine(
+                client=LangChainDecisionClient(),
+                settings=settings,
+                fallback=lambda _prompt: _rule_decision(state),
+            )
+            result = engine.decide(prompt)
+
+    return _apply_decision_result(state, result)
 
 
 def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
@@ -103,6 +307,16 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="unsafe_tool_confirmation",
             requested_action="manual_tool_confirmation_review",
         )
+    elif _is_confirmation_bypass_attempt(message):
+        intent = "escalation"
+        confidence = 1.0
+        state["escalated"] = True
+        state["policy_violation"] = {"reason": "confirmation_bypass_attempt"}
+        state["escalation"] = _build_escalation(
+            state,
+            reason="confirmation_bypass_attempt",
+            requested_action="manual_security_review",
+        )
     elif detect_prompt_injection(message):
         intent = "escalation"
         confidence = 1.0
@@ -113,9 +327,6 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="prompt_injection",
             requested_action="manual_security_review",
         )
-    elif _is_policy_question(message):
-        intent = "consultation"
-        confidence = 0.88
     elif any(keyword in message for keyword in MEDICAL_ESCALATION_KEYWORDS):
         intent = "escalation"
         confidence = 1.0
@@ -125,7 +336,7 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="medical_concern",
             requested_action="medical_or_safety_follow_up",
         )
-    elif any(keyword in message for keyword in REFUND_ESCALATION_KEYWORDS):
+    elif _is_refund_dispute(message):
         intent = "escalation"
         confidence = 1.0
         state["escalated"] = True
@@ -134,6 +345,9 @@ def classify_intent(state: OperationsAgentState) -> OperationsAgentState:
             reason="refund_dispute",
             requested_action="refund_or_complaint_review",
         )
+    elif _is_policy_question(message):
+        intent = "consultation"
+        confidence = 0.88
     elif state.get("confirmed_tool_name") == "cancel_booking":
         intent = "cancel"
         confidence = 1.0
@@ -569,17 +783,44 @@ def execute_tools(state: OperationsAgentState) -> OperationsAgentState:
             if state.get("booking_issue"):
                 continue
             summary = _build_confirmation_summary(state, results, result.tool_name, planned_tool.get("arguments", {}))
+            try:
+                confirmation_token = build_confirmation_token(
+                    state.get("conversation_id", ""),
+                    result.tool_name,
+                    planned_tool.get("arguments", {}),
+                    user_id=state.get("user_id", "local_user"),
+                )
+            except ValueError:
+                _force_escalation(
+                    state,
+                    reason="unsafe_tool_confirmation",
+                    requested_action="manual_tool_confirmation_review",
+                    policy_metadata={"source": "confirmation_signing"},
+                )
+                escalation_plan = {
+                    "tool_name": "escalate_to_human",
+                    "arguments": {
+                        "reason": "unsafe_tool_confirmation",
+                        "summary": state["escalation"]["summary"],
+                    },
+                    "permission": "external",
+                }
+                state["tool_plan"] = [escalation_plan]
+                results.append(
+                    gateway.execute(
+                        escalation_plan["tool_name"],
+                        escalation_plan["arguments"],
+                        context,
+                    ).model_dump()
+                )
+                break
             state["confirmation_required"] = True
             state["confirmation_request"] = {
                 "tool_name": result.tool_name,
                 "arguments": planned_tool.get("arguments", {}),
                 "summary": summary,
                 "message": _confirmation_message(result.tool_name),
-                "confirmation_token": build_confirmation_token(
-                    state.get("conversation_id", ""),
-                    result.tool_name,
-                    planned_tool.get("arguments", {}),
-                ),
+                "confirmation_token": confirmation_token,
             }
 
         if result.success and result.tool_name == "search_knowledge_base":
@@ -698,7 +939,7 @@ def output_policy_check(state: OperationsAgentState) -> OperationsAgentState:
 
 
 def finalize_turn(state: OperationsAgentState) -> OperationsAgentState:
-    return append_trace(
+    finalized = append_trace(
         state,
         "finalize_turn",
         {
@@ -707,6 +948,177 @@ def finalize_turn(state: OperationsAgentState) -> OperationsAgentState:
             "rag_used": state.get("rag_used", False),
         },
     )
+    return clear_confirmation_inputs(finalized)
+
+
+def clear_confirmation_inputs(
+    state: OperationsAgentState,
+) -> OperationsAgentState:
+    for field in CONFIRMATION_INPUT_FIELDS:
+        state.pop(field, None)
+    return state
+
+
+def _rule_decision(state: OperationsAgentState) -> ModelDecision:
+    classified = deepcopy(state)
+    classify_intent(classified)
+    intent = classified.get("intent", "unknown")
+    if intent == "confirmation_rejected":
+        intent = "unknown"
+    return ModelDecision(
+        intent=intent,
+        confidence=classified.get("confidence", 0.0),
+        extracted_slots={},
+        ambiguities=[],
+        risk_flags=[],
+        suggested_action="route_deterministically",
+        decision_summary=f"Deterministic rules selected {intent}.",
+    )
+
+
+def _rule_engine_result(
+    state: OperationsAgentState,
+    *,
+    source: Literal["rules", "rule_fallback"],
+    fallback_reason: DecisionErrorCode | None = None,
+) -> DecisionEngineResult:
+    errors = []
+    if fallback_reason is not None:
+        errors.append(
+            DecisionError(
+                code=fallback_reason,
+                attempt=0,
+                retryable=False,
+            )
+        )
+    return DecisionEngineResult(
+        decision=_rule_decision(state),
+        metadata=DecisionMetadata(
+            source=source,
+            fallback_reason=fallback_reason,
+        ),
+        errors=errors,
+    )
+
+
+def _apply_decision_result(
+    state: OperationsAgentState,
+    result: DecisionEngineResult,
+) -> OperationsAgentState:
+    decision = result.decision
+    decision_data = decision.model_dump()
+    metadata = result.metadata.model_dump()
+    errors = [error.model_dump() for error in result.errors]
+    sanitized_risk_flags = _sanitize_risk_flags(decision.risk_flags)
+    decision_data["risk_flags"] = sanitized_risk_flags
+
+    state["model_decision"] = decision_data
+    state["decision_metadata"] = metadata
+    state["decision_source"] = metadata["source"]
+    state["decision_errors"] = errors
+    state["intent"] = decision.intent
+    state["confidence"] = decision.confidence
+    state["ambiguities"] = list(decision.ambiguities)
+
+    if sanitized_risk_flags:
+        _force_escalation(
+            state,
+            reason="model_risk_flag",
+            requested_action="manual_model_risk_review",
+            policy_metadata={"risk_flags": sanitized_risk_flags},
+        )
+        state["model_decision"] = decision_data
+        state["decision_metadata"] = {
+            **metadata,
+            "source": "forced_escalation",
+        }
+        state["decision_errors"] = errors
+    elif decision.intent == "unknown" or decision.confidence < 0.5:
+        _set_decision_escalation(
+            state,
+            reason="low_confidence",
+            requested_action="manual_intent_review",
+        )
+    elif decision.ambiguities or decision.intent == "clarification":
+        state["intent"] = "clarification"
+        state["escalated"] = False
+    elif decision.intent == "escalation":
+        _set_decision_escalation(
+            state,
+            reason="model_escalation",
+            requested_action="manual_model_review",
+        )
+
+    from .routers import route_after_decision
+
+    state["decision_route"] = route_after_decision(state)
+    return append_trace(
+        state,
+        "decide_request",
+        {
+            "source": state["decision_source"],
+            "route": state["decision_route"],
+            "error_codes": [error["code"] for error in errors],
+        },
+    )
+
+
+def _set_decision_escalation(
+    state: OperationsAgentState,
+    *,
+    reason: str,
+    requested_action: str,
+) -> None:
+    state["intent"] = "escalation"
+    state["escalated"] = True
+    state["escalation"] = _build_escalation(
+        state,
+        reason=reason,
+        requested_action=requested_action,
+    )
+    state["tool_plan"] = []
+
+
+def _force_escalation(
+    state: OperationsAgentState,
+    *,
+    reason: str,
+    requested_action: str,
+    policy_metadata: dict[str, Any] | None = None,
+) -> None:
+    state["intent"] = "escalation"
+    state["confidence"] = 1.0
+    state["escalated"] = True
+    state["decision_source"] = "forced_escalation"
+    state["decision_metadata"] = DecisionMetadata(source="forced_escalation").model_dump()
+    state["decision_errors"] = []
+    state["ambiguities"] = []
+    state["decision_route"] = "escalation"
+    state["model_decision"] = {}
+    state["confirmation_required"] = False
+    state["confirmation_request"] = {}
+    state["tool_plan"] = []
+    state["tool_results"] = []
+    state["policy_violation"] = {"reason": reason, **(policy_metadata or {})}
+    state["escalation"] = _build_escalation(
+        state,
+        reason=reason,
+        requested_action=requested_action,
+    )
+
+
+def _sanitize_risk_flags(risk_flags: list[str]) -> list[str]:
+    sanitized: list[str] = []
+    for flag in risk_flags[:MAX_RISK_FLAGS]:
+        bounded = re.sub(r"[^A-Za-z0-9_.:-]+", "_", flag).strip("_")
+        sanitized.append((bounded or "unspecified")[:MAX_RISK_FLAG_LENGTH])
+    return sanitized
+
+
+def _bounded_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return re.sub(r"[^A-Za-z0-9_.:-]+", "_", value)[:MAX_RISK_FLAG_LENGTH]
 
 
 def _normalize_booking_date(message: str) -> str | None:
@@ -949,6 +1361,12 @@ def _is_policy_question(message: str) -> bool:
     return "政策" in message and any(keyword in message for keyword in ("取消", "退款", "迟到", "服务"))
 
 
+def _is_refund_dispute(message: str) -> bool:
+    return "我要退款" in message or any(
+        keyword in message for keyword in ("投诉", "服务很差", "争议")
+    )
+
+
 def _match_memory_for_deletion(state: OperationsAgentState) -> dict[str, Any] | None:
     message = state.get("message", "")
     memories = _memory_records_for_deletion(state)
@@ -987,16 +1405,49 @@ def _memory_records_for_deletion(state: OperationsAgentState) -> list[dict[str, 
     return records
 
 
+def _has_confirmation_metadata(state: OperationsAgentState) -> bool:
+    return any(
+        field in state
+        for field in (
+            "confirmation_decision",
+            "confirmed_tool_name",
+            "confirmed_tool_arguments",
+            "confirmation_token",
+        )
+    )
+
+
 def _has_unsafe_confirmed_tool_request(state: OperationsAgentState) -> bool:
-    tool_name = state.get("confirmed_tool_name")
-    if tool_name not in BOOKING_WRITE_TOOLS | MEMORY_WRITE_TOOLS:
+    if not _has_confirmation_metadata(state):
         return False
-    return not is_valid_confirmation_token(
+    tool_name = state.get("confirmed_tool_name")
+    arguments = state.get("confirmed_tool_arguments")
+    token = state.get("confirmation_token")
+    if state.get("confirmation_decision") not in {None, "rejected"}:
+        return True
+    if tool_name not in CONFIRMABLE_WRITE_TOOLS:
+        return True
+    if not isinstance(arguments, dict):
+        return True
+    if not isinstance(token, str) or not token:
+        return True
+    return not consume_confirmation_token(
         state.get("conversation_id", ""),
         tool_name,
-        state.get("confirmed_tool_arguments", {}),
-        state.get("confirmation_token"),
+        arguments,
+        token,
+        user_id=state.get("user_id", "local_user"),
     )
+
+
+def _is_confirmation_bypass_attempt(message: str) -> bool:
+    patterns = (
+        r"(?:绕过|跳过)(?:本次|这个|所有)?确认",
+        r"(?:不要|不需要|无需)(?:再|进行)?确认[，,\s]*(?:就)?(?:直接)?"
+        r"(?:创建|调用|执行|预约|写入|删除|取消|改约)",
+        r"^(?:不要|不需要|无需)(?:再|进行)?确认[。！!\s]*$",
+    )
+    return any(re.search(pattern, message, flags=re.IGNORECASE) for pattern in patterns)
 
 
 def _apply_staff_availability_issue(state: OperationsAgentState, output: dict[str, Any]) -> None:

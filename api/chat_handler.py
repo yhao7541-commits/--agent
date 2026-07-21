@@ -17,7 +17,7 @@ async def ProcessUserInput_stream(user_input, state=None, context=None):
         context = {}
 
     conversation_id = context.get("conversation_id", global_conversation_id)
-    result = operations_agent.run_turn(
+    result = await operations_agent.arun_turn(
         {
             "user_id": context.get("user_id", "local_user"),
             "conversation_id": conversation_id,

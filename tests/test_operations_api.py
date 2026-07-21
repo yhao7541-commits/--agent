@@ -1,11 +1,13 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import pytest
 
 from api.operations import router
 from observability.trace_store import JsonlTraceStore
 from tools.customer_tools import reset_customer_memory_store
 from tools.customer_tools import get_customer_memory_store
 from memory.customer_memory import MemoryProposal
+from security.guardrails import reset_confirmation_token_registry
 
 
 def make_client():
@@ -30,7 +32,43 @@ def test_operations_chat_returns_trace_id():
     body = response.json()
     assert body["trace_id"]
     assert "reply" in body
+    assert body["intent"] == "greeting"
+    assert body["escalated"] is False
     assert "raw_prompt" not in body
+
+
+@pytest.mark.parametrize(
+    "confirmation_metadata",
+    [
+        {"confirmed_tool_arguments": {}},
+        {"confirmation_token": None},
+    ],
+)
+def test_operations_chat_fails_closed_for_explicit_empty_confirmation_metadata(
+    confirmation_metadata,
+):
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_explicit_empty_confirmation",
+            "conversation_id": "conv_explicit_empty_confirmation",
+            "message": "你好",
+            **confirmation_metadata,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"] == "escalation"
+    assert body["escalated"] is True
+    assert [call["tool_name"] for call in body["tool_calls"]] == [
+        "escalate_to_human"
+    ]
+    assert body["tool_calls"][0]["arguments"]["reason"] == (
+        "unsafe_tool_confirmation"
+    )
 
 
 def test_operations_chat_persists_trace_events_when_store_is_configured(tmp_path, monkeypatch):
@@ -171,6 +209,126 @@ def test_operations_chat_executes_confirmed_booking():
     assert body["executed_tools"][0]["tool_name"] == "create_booking"
     assert body["executed_tools"][0]["success"] is True
     assert "预约已创建" in body["reply"]
+
+
+def test_operations_chat_replayed_confirmation_executes_write_only_once():
+    reset_confirmation_token_registry()
+    client = make_client()
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_replay",
+            "conversation_id": "conv_replay",
+            "message": "我想明天下午3点约肩颈放松",
+        },
+    ).json()
+    confirmed_payload = {
+        "user_id": "user_replay",
+        "conversation_id": "conv_replay",
+        "message": "确认",
+        "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+        "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+        "confirmation_token": pending["confirmation_request"]["confirmation_token"],
+    }
+
+    first = client.post("/api/operations/chat", json=confirmed_payload).json()
+    replay = client.post("/api/operations/chat", json=confirmed_payload).json()
+
+    assert [result["tool_name"] for result in first["executed_tools"]] == [
+        "create_booking"
+    ]
+    assert first["executed_tools"][0]["success"] is True
+    assert replay["intent"] == "escalation"
+    assert [result["tool_name"] for result in replay["executed_tools"]] == [
+        "escalate_to_human"
+    ]
+    assert replay["tool_calls"][0]["arguments"]["reason"] == (
+        "unsafe_tool_confirmation"
+    )
+
+
+@pytest.mark.parametrize(
+    "malformed_token",
+    ["v2.é.abc", "v2.eA.é", f"v2.{'a' * 5_000}.{'b' * 64}"],
+)
+def test_operations_chat_fails_closed_for_non_ascii_confirmation_token(
+    malformed_token,
+):
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_unicode_token",
+            "conversation_id": "conv_unicode_token",
+            "message": "确认取消",
+            "confirmed_tool_name": "cancel_booking",
+            "confirmed_tool_arguments": {
+                "booking_id": "booking_123",
+                "customer_name": "user_unicode_token",
+            },
+            "confirmation_token": malformed_token,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"] == "escalation"
+    assert body["escalated"] is True
+    assert body["tool_calls"][0]["arguments"]["reason"] == (
+        "unsafe_tool_confirmation"
+    )
+
+
+@pytest.mark.parametrize(
+    ("user_id", "conversation_id"),
+    [
+        ("user_oversized_api", "c" * 257),
+        ("u" * 257, "conv_oversized_api"),
+    ],
+)
+def test_operations_chat_fails_closed_when_draft_binding_is_oversized(
+    user_id,
+    conversation_id,
+):
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "message": "我想明天下午3点约肩颈放松",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field", ["user_id", "conversation_id"])
+def test_operations_chat_rejects_lone_surrogate_identifiers(field):
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app, raise_server_exceptions=False)
+    payload = (
+        '{"user_id":"\\ud800","conversation_id":"conv_surrogate",'
+        '"message":"你好"}'
+        if field == "user_id"
+        else '{"user_id":"user_surrogate","conversation_id":"\\ud800",'
+        '"message":"你好"}'
+    )
+
+    response = client.post(
+        "/api/operations/chat",
+        content=payload,
+        headers={"content-type": "application/json"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_operations_chat_rejects_pending_booking_without_write():
