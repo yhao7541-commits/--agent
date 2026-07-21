@@ -32,3 +32,9 @@ class OperationsAgentState(TypedDict, total=False):
     errors: list[dict[str, Any]]
     rag_used: bool
     escalated: bool
+    model_decision: dict[str, Any]
+    decision_metadata: dict[str, Any]
+    ambiguities: list[str]
+    decision_source: str
+    decision_errors: list[dict[str, Any]]
+    decision_route: str
