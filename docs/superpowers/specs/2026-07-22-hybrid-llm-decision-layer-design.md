@@ -154,6 +154,7 @@ class DecisionMetadata(BaseModel):
         "rule_fallback",
         "forced_escalation",
         "confirmed_action",
+        "confirmation_rejected",
     ]
     provider: str | None = None
     model: str | None = None
@@ -165,7 +166,9 @@ class DecisionMetadata(BaseModel):
     fallback_reason: str | None = None
 ```
 
-`rules` means deliberate `OPERATIONS_DECISION_MODE=rules`; `rule_fallback` means hybrid mode attempted or could not use the provider and then invoked deterministic rules. `confirmed_action` means a valid confirmation took the no-model fast path. Provider and token fields are best effort. A provider that does not expose usage metadata returns `null`; the runtime must not invent values.
+`rules` means deliberate `OPERATIONS_DECISION_MODE=rules`; `rule_fallback` means hybrid mode attempted or could not use the provider and then invoked deterministic rules. `confirmed_action` means a valid confirmation took the no-model fast path. `confirmation_rejected` means the user rejected a pending action and no tool was executed. Provider and token fields are best effort. A provider that does not expose usage metadata returns `null`; the runtime must not invent values.
+
+`latency_ms` is total decision-wall-clock time, including all attempted calls, repair construction, and backoff. Token totals sum usage reported for every attempted call, including a malformed response when the provider reports its usage. Cost uses those summed tokens and the frozen pricing configuration; missing usage remains unavailable rather than being estimated silently.
 
 ### 6.3 State additions
 
@@ -229,7 +232,7 @@ LLM_DECISION_MIN_CONFIDENCE=0.65
 
 The total deadline starts immediately before the first provider call and includes provider time, repair-prompt construction, and retry backoff. Before every attempt, the engine computes `remaining_seconds = deadline - monotonic_now`; if no time remains it does not start another call. The provider timeout for an attempt is `min(LLM_DECISION_TIMEOUT_SECONDS, remaining_seconds)`.
 
-The production adapter must pass the timeout to the provider's native HTTP / SDK timeout mechanism. Calls never overlap. A timed-out call is cancelled through that mechanism when supported; otherwise its late result is ignored and cannot mutate state. Tests use a fake clock and controllable fake client to verify deadline and non-overlap behavior.
+The production adapter must pass the timeout to the provider's native HTTP / SDK timeout mechanism and must not be enabled unless that mechanism returns control when the timeout expires. This capability is validated before the first provider call; an adapter without bounded native timeout support fails preflight with `configuration_error` and uses rule fallback. Calls never overlap, and a retry starts only after the previous call has returned or confirmed cancellation. Tests use a fake clock and controllable fake client to verify deadline and non-overlap behavior.
 
 ### 8.2 Retryable failures
 
@@ -260,7 +263,7 @@ The repair prompt must not contain secrets, a full Python stack, or hidden runti
 
 ### 8.4 Budget exhaustion
 
-When attempts or the overall deadline are exhausted, or a non-retryable provider/configuration failure occurs:
+When attempts or the overall deadline are exhausted, or a non-retryable provider failure occurs:
 
 1. record a structured fallback reason;
 2. run the existing rule classifier and slot extractor through a stable fallback adapter;
@@ -290,6 +293,7 @@ The existing deterministic classifier is wrapped as `RuleDecision`. It uses the 
 | Starting condition | Model calls | Decision source | Terminal route | Required trace code |
 | --- | ---: | --- | --- | --- |
 | Valid confirmation token | 0 | `confirmed_action` | exact confirmed execution | `confirmed_action_validated` |
+| User rejects pending confirmation | 0 | `confirmation_rejected` | rejection response; no tool plan | `confirmation_rejected` |
 | Invalid/malformed confirmation | 0 | `forced_escalation` | escalation | `unsafe_tool_confirmation` |
 | Hard guardrail match | 0 | `forced_escalation` | escalation | guardrail reason from Section 10.2 |
 | `rules` mode, sufficient rule result | 0 | `rules` | rule intent branch | `rule_decision_completed` |
@@ -300,7 +304,8 @@ The existing deterministic classifier is wrapped as `RuleDecision`. It uses the 
 | Business-validation error that can be corrected by the user | 1-3 | `llm` | clarification | `business_validation_error` |
 | Known or unknown model risk flag | 1-3 | `forced_escalation` | escalation | `model_risk_flag` plus sanitized flag |
 | Retry budget/deadline exhausted | 1-3 | `rule_fallback` | sufficient rule branch, otherwise escalation | final provider/deadline code |
-| Authentication/configuration/non-retryable provider failure | 1 | `rule_fallback` | sufficient rule branch, otherwise escalation | provider/configuration code |
+| Missing/invalid config or adapter without bounded native timeout | 0 | `rule_fallback` | sufficient rule branch, otherwise escalation | `configuration_error` |
+| Authentication/permission/unsupported-model rejection returned by provider | 1 | `rule_fallback` | sufficient rule branch, otherwise escalation | provider error code |
 
 Clarification never plans a write tool. Escalation may plan only the existing human-handoff tool.
 
@@ -352,7 +357,7 @@ Rules:
 - Every accepted slot retains provenance.
 - Date, time, duration, service, staff, and booking identifiers are normalized and validated after model output.
 - Unsupported or contradictory values become `ambiguities`; they do not silently become write arguments.
-- Multiple simultaneous business intents route to clarification in the first milestone unless a deterministic priority rule can safely handle them.
+- Multiple simultaneous business intents always route to clarification in the first milestone. No priority-handling implementation is included in this milestone.
 
 ## 12. Conditional graph behavior
 
@@ -620,7 +625,7 @@ If the live model does not improve a long-tail metric, implementation may still 
 - Run rules and live hybrid evaluation.
 - Record actual metrics, latency, token usage, and cost.
 - Update architecture, evaluation, demo, README, and learning notes.
-- Resolve only the known documentation consistency failure `tests/test_single_agent_migration.py::test_main_docs_describe_single_agent_tool_orchestration`, currently caused by `PROJECT_LEARNING_NOTES.md` missing the required current-architecture phrase `单一 Operations Agent`; do not broaden this into unrelated documentation cleanup.
+- Resolve only the known documentation consistency failure `tests/test_single_agent_migration.py::test_main_docs_describe_single_agent_tool_orchestration`, currently caused by `PROJECT_LEARNING_NOTES.md` missing the required current-architecture phrase `单一 Operations Agent`; this exact phrase has been verified against the UTF-8 test source and is not mojibake. Do not broaden this into unrelated documentation cleanup.
 - Prepare three demo scenarios: successful LLM routing, malformed-output repair, and provider-failure fallback.
 
 ## 22. Risks and mitigations
