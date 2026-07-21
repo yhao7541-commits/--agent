@@ -54,25 +54,28 @@ class DecisionSettings(BaseModel):
     model_config = ConfigDict(frozen=True, allow_inf_nan=False)
 
     mode: Literal["rules", "hybrid"] = "rules"
-    max_attempts: int = Field(default=1, ge=1, le=3)
-    per_call_timeout_seconds: float = Field(default=8, gt=0)
-    total_deadline_seconds: float = Field(default=20, gt=0)
-    minimum_confidence: float = Field(default=0.6, ge=0, le=1)
+    max_attempts: int = Field(default=3, ge=1, le=3)
+    per_call_timeout_seconds: float = Field(default=10, gt=0)
+    total_deadline_seconds: float = Field(default=25, gt=0)
+    minimum_confidence: float = Field(default=0.65, ge=0, le=1)
 
     @classmethod
     def from_env(cls) -> "DecisionSettings":
-        max_attempts = int(os.getenv("LLM_DECISION_MAX_ATTEMPTS", "1"))
+        max_attempts = int(os.getenv("LLM_DECISION_MAX_ATTEMPTS", "3"))
         return cls(
-            mode=os.getenv("LLM_DECISION_MODE", "rules"),
+            mode=os.getenv("OPERATIONS_DECISION_MODE", "rules"),
             max_attempts=max(1, min(max_attempts, 3)),
             per_call_timeout_seconds=float(
-                os.getenv("LLM_DECISION_PER_CALL_TIMEOUT_SECONDS", "8")
+                os.getenv(
+                    "LLM_DECISION_TIMEOUT_SECONDS",
+                    os.getenv("LLM_DECISION_PER_CALL_TIMEOUT_SECONDS", "10"),
+                )
             ),
             total_deadline_seconds=float(
-                os.getenv("LLM_DECISION_TOTAL_DEADLINE_SECONDS", "20")
+                os.getenv("LLM_DECISION_TOTAL_DEADLINE_SECONDS", "25")
             ),
             minimum_confidence=float(
-                os.getenv("LLM_DECISION_MIN_CONFIDENCE", "0.6")
+                os.getenv("LLM_DECISION_MIN_CONFIDENCE", "0.65")
             ),
         )
 

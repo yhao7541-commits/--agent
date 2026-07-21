@@ -15,7 +15,7 @@ from agents.operations.state import OperationsAgentState
 @pytest.fixture(autouse=True)
 def clear_decision_environment(monkeypatch):
     for name in list(os.environ):
-        if name.startswith("LLM_DECISION_"):
+        if name.startswith(("LLM_DECISION_", "OPERATIONS_DECISION_")):
             monkeypatch.delenv(name, raising=False)
 
 
@@ -66,6 +66,52 @@ def test_decision_settings_caps_attempts_at_three(monkeypatch):
     settings = DecisionSettings.from_env()
 
     assert settings.max_attempts == 3
+
+
+def test_decision_settings_reads_operations_mode_and_ignores_obsolete_llm_mode(
+    monkeypatch,
+):
+    monkeypatch.setenv("OPERATIONS_DECISION_MODE", "hybrid")
+    monkeypatch.setenv("LLM_DECISION_MODE", "rules")
+
+    settings = DecisionSettings.from_env()
+
+    assert settings.mode == "hybrid"
+
+
+def test_decision_settings_uses_approved_clean_environment_defaults():
+    settings = DecisionSettings.from_env()
+
+    assert settings.mode == "rules"
+    assert settings.max_attempts == 3
+    assert settings.per_call_timeout_seconds == 10
+    assert settings.total_deadline_seconds == 25
+    assert settings.minimum_confidence == 0.65
+
+
+def test_decision_settings_reads_primary_timeout_environment_variable(monkeypatch):
+    monkeypatch.setenv("LLM_DECISION_TIMEOUT_SECONDS", "12.5")
+
+    settings = DecisionSettings.from_env()
+
+    assert settings.per_call_timeout_seconds == 12.5
+
+
+def test_decision_settings_prefers_primary_timeout_environment_variable(monkeypatch):
+    monkeypatch.setenv("LLM_DECISION_TIMEOUT_SECONDS", "12")
+    monkeypatch.setenv("LLM_DECISION_PER_CALL_TIMEOUT_SECONDS", "9")
+
+    settings = DecisionSettings.from_env()
+
+    assert settings.per_call_timeout_seconds == 12
+
+
+def test_decision_settings_falls_back_to_legacy_per_call_timeout_variable(monkeypatch):
+    monkeypatch.setenv("LLM_DECISION_PER_CALL_TIMEOUT_SECONDS", "9")
+
+    settings = DecisionSettings.from_env()
+
+    assert settings.per_call_timeout_seconds == 9
 
 
 @pytest.mark.parametrize(
