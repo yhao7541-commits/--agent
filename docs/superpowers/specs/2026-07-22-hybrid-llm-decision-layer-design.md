@@ -148,7 +148,13 @@ The runtime, not the model, adds:
 
 ```python
 class DecisionMetadata(BaseModel):
-    source: Literal["llm", "rule_fallback", "forced_escalation"]
+    source: Literal[
+        "llm",
+        "rules",
+        "rule_fallback",
+        "forced_escalation",
+        "confirmed_action",
+    ]
     provider: str | None = None
     model: str | None = None
     attempt_count: int = 0
@@ -159,7 +165,7 @@ class DecisionMetadata(BaseModel):
     fallback_reason: str | None = None
 ```
 
-Provider and token fields are best effort. A provider that does not expose usage metadata returns `null`; the runtime must not invent values.
+`rules` means deliberate `OPERATIONS_DECISION_MODE=rules`; `rule_fallback` means hybrid mode attempted or could not use the provider and then invoked deterministic rules. `confirmed_action` means a valid confirmation took the no-model fast path. Provider and token fields are best effort. A provider that does not expose usage metadata returns `null`; the runtime must not invent values.
 
 ### 6.3 State additions
 
@@ -200,7 +206,7 @@ The production adapter uses the existing model-provider configuration. Tests use
 
 ### 8.1 Unified call budget
 
-Each decision has a maximum of three model calls total. Timeout retries and malformed-output repair share this budget.
+Each decision has a hard maximum of three model calls total. Timeout retries and malformed-output repair share this budget. Configuration may reduce this number but may not raise it: effective attempts are `min(3, max(1, configured_attempts))`.
 
 Example:
 
@@ -220,6 +226,10 @@ LLM_DECISION_TIMEOUT_SECONDS=10
 LLM_DECISION_TOTAL_DEADLINE_SECONDS=25
 LLM_DECISION_MIN_CONFIDENCE=0.65
 ```
+
+The total deadline starts immediately before the first provider call and includes provider time, repair-prompt construction, and retry backoff. Before every attempt, the engine computes `remaining_seconds = deadline - monotonic_now`; if no time remains it does not start another call. The provider timeout for an attempt is `min(LLM_DECISION_TIMEOUT_SECONDS, remaining_seconds)`.
+
+The production adapter must pass the timeout to the provider's native HTTP / SDK timeout mechanism. Calls never overlap. A timed-out call is cancelled through that mechanism when supported; otherwise its late result is ignored and cannot mutate state. Tests use a fake clock and controllable fake client to verify deadline and non-overlap behavior.
 
 ### 8.2 Retryable failures
 
@@ -250,12 +260,12 @@ The repair prompt must not contain secrets, a full Python stack, or hidden runti
 
 ### 8.4 Budget exhaustion
 
-When attempts or the overall deadline are exhausted:
+When attempts or the overall deadline are exhausted, or a non-retryable provider/configuration failure occurs:
 
 1. record a structured fallback reason;
 2. run the existing rule classifier and slot extractor through a stable fallback adapter;
 3. mark `source=rule_fallback`;
-4. route to clarification or escalation if fallback confidence remains insufficient.
+4. apply the terminal-routing contract in Section 9.1.
 
 ## 9. Error taxonomy
 
@@ -273,6 +283,27 @@ Decision errors use stable codes:
 - `business_validation_error`
 - `total_deadline_exceeded`
 
+### 9.1 Terminal-routing contract
+
+The existing deterministic classifier is wrapped as `RuleDecision`. It uses the same intent enum and the existing numeric confidence values. For terminal routing, a rule result is sufficient only when `intent != "unknown"` and `confidence >= 0.5`; otherwise it routes to `escalation` with reason `low_confidence`.
+
+| Starting condition | Model calls | Decision source | Terminal route | Required trace code |
+| --- | ---: | --- | --- | --- |
+| Valid confirmation token | 0 | `confirmed_action` | exact confirmed execution | `confirmed_action_validated` |
+| Invalid/malformed confirmation | 0 | `forced_escalation` | escalation | `unsafe_tool_confirmation` |
+| Hard guardrail match | 0 | `forced_escalation` | escalation | guardrail reason from Section 10.2 |
+| `rules` mode, sufficient rule result | 0 | `rules` | rule intent branch | `rule_decision_completed` |
+| `rules` mode, unknown/low rule result | 0 | `rules` | escalation | `low_confidence` |
+| Valid LLM, confidence at or above threshold, no unresolved ambiguity/risk/validation error | 1-3 | `llm` | validated LLM intent branch | `llm_decision_completed` |
+| Valid LLM but low confidence or `intent=unknown` | 1-3 | `rule_fallback` | sufficient rule branch, otherwise escalation | `low_confidence` |
+| Unresolved ambiguity, contradictory slots, or multiple intents | 1-3 | `llm` | clarification | `clarification_required` |
+| Business-validation error that can be corrected by the user | 1-3 | `llm` | clarification | `business_validation_error` |
+| Known or unknown model risk flag | 1-3 | `forced_escalation` | escalation | `model_risk_flag` plus sanitized flag |
+| Retry budget/deadline exhausted | 1-3 | `rule_fallback` | sufficient rule branch, otherwise escalation | final provider/deadline code |
+| Authentication/configuration/non-retryable provider failure | 1 | `rule_fallback` | sufficient rule branch, otherwise escalation | provider/configuration code |
+
+Clarification never plans a write tool. Escalation may plan only the existing human-handoff tool.
+
 User-facing replies remain concise and do not expose provider internals.
 
 ## 10. Confirmation and safety fast paths
@@ -289,15 +320,17 @@ The model never reinterprets or changes an already-confirmed action.
 
 ### 10.2 Hard input guardrail
 
-Deterministic checks run before model interpretation for:
+Deterministic checks run before model interpretation and have fixed outcomes:
 
-- prompt-injection patterns;
-- instructions to bypass confirmation;
-- medical injury or urgent safety concerns;
-- serious refund disputes or complaints;
-- malformed confirmed-action fields.
+| Condition | Outcome | Reason code |
+| --- | --- | --- |
+| Prompt-injection pattern | escalation | `prompt_injection` |
+| Instruction to bypass confirmation | escalation | `confirmation_bypass_attempt` |
+| Medical injury or urgent safety concern | escalation | `medical_concern` |
+| Serious refund dispute or complaint | escalation | `refund_dispute` |
+| Malformed or invalid confirmed-action fields | escalation | `unsafe_tool_confirmation` |
 
-These conditions may force escalation. The LLM cannot lower their severity.
+These matches always skip the model and enter the human-escalation branch. The LLM cannot lower their severity.
 
 ## 11. Slot merge and business validation
 
@@ -418,7 +451,7 @@ Trace must not persist:
 
 ## 16. API compatibility
 
-Existing request fields and response fields remain valid. `OperationsChatResponse` gains an optional `decision` object equivalent to:
+Existing request fields and response fields remain valid. Only `POST /api/operations/chat` gains an additive `decision` object equivalent to:
 
 ```json
 {
@@ -435,7 +468,7 @@ Existing request fields and response fields remain valid. `OperationsChatRespons
 }
 ```
 
-Compatibility routes continue to call the same `OperationsAgent` facade. No caller is required to send a new field.
+`decision` is always serialized as an object on `/api/operations/chat`; unavailable inner values are serialized as `null`. Its `source` covers model, deliberate rules mode, fallback, forced escalation, and confirmed-action fast paths. Compatibility routes continue to call the same `OperationsAgent` facade but do not add or rename top-level response fields in this milestone. No caller is required to send a new request field. Compatibility tests assert their current exact response shapes.
 
 ## 17. Operations console
 
@@ -501,9 +534,13 @@ Cover:
 - existing compatibility routes;
 - optional decision response fields.
 
-### 19.3 Live evaluation
+### 19.3 Deterministic resilience evaluation
 
-Live-model evaluation is opt-in and separate from standard Pytest. It requires a configured API key and writes a JSON report.
+Provider failures, timeouts, malformed JSON, schema errors, deadline behavior, and recovery rates are evaluated with the programmable fake model, not inferred from an ordinary live-provider run. This suite produces exact counts for attempt budget, repair success, retry recovery, fallback, confirmation compliance, and unsafe writes.
+
+### 19.4 Live semantic comparison
+
+Live-model evaluation is opt-in and separate from standard Pytest. It requires a configured API key and writes a timestamped JSON report. The report freezes provider, model name, temperature `0`, prompt version, dataset version, local timezone, and an explicit date anchor. Every case stores expected labels, normalized prediction, decision metadata, and aggregate membership.
 
 Use the same approximately 30 long-tail cases for:
 
@@ -518,7 +555,19 @@ Case families:
 - vague time and contradictory slots;
 - negation and special requests;
 - prompt injection and confirmation bypass;
-- provider and malformed-output recovery.
+- safety and ambiguity recognition without attempting to induce provider faults.
+
+Each case starts in an isolated evaluation namespace. Single-turn cases start with empty slots and memory. A multi-turn case explicitly declares its prior turns, accepted slot state, and expected final labels; its booking and memory stores are reset before the case. Case order must not affect results.
+
+Scoring rules:
+
+- intent accuracy is exact match on the normalized intent enum;
+- slot precision and recall are micro-averaged over normalized `(field, value)` pairs, excluding unspecified expected fields;
+- ambiguity accuracy is exact match on the expected boolean `requires_clarification` label;
+- valid structured-output rate is valid final `ModelDecision` objects divided by hybrid cases that invoked the model;
+- fallback rate is `source=rule_fallback` divided by hybrid cases;
+- p50 and p95 use total decision latency per case with nearest-rank percentile reporting;
+- confirmation compliance and unsafe-write count come from deterministic smoke/resilience suites, not uncontrolled live behavior.
 
 Report:
 
@@ -526,10 +575,7 @@ Report:
 - slot precision and recall;
 - ambiguity-detection accuracy;
 - valid structured-output rate;
-- retry-recovery rate;
 - fallback rate;
-- confirmation compliance;
-- unsafe write count;
 - p50 / p95 latency;
 - average token usage and estimated cost when price inputs are configured.
 
@@ -544,11 +590,11 @@ Results are written only after an actual run. The README must not contain invent
 5. No unconfirmed write is executed.
 6. Every model recovery or fallback has a stable trace reason.
 7. The operations console shows decision, retry, repair, fallback, route, and tool details.
-8. Hybrid performance is no worse than the rule baseline on the new long-tail set and improves at least one of intent, slot, or ambiguity detection without a safety regression.
-9. Latency, token usage, and cost are reported rather than hidden.
+8. The rule and hybrid modes both complete the frozen long-tail comparison and persist per-case plus aggregate results. Improvement is not an implementation release gate; any claim of improvement is allowed only when the recorded hybrid metric is actually higher, with no safety regression in deterministic suites.
+9. Latency is always reported. Token usage and cost are reported when the provider exposes usage and pricing is configured; otherwise the report contains `status="unavailable"` and a reason rather than an invented number.
 10. README clearly separates deterministic tests, live-model evaluation, and unmeasured online outcomes.
 
-If the live model does not improve a long-tail metric, the milestone is not described as an accuracy improvement. The report becomes a documented bad case and prompt / schema iteration input.
+If the live model does not improve a long-tail metric, implementation may still be complete, but the milestone is not described as an accuracy improvement. The report becomes a documented bad case and prompt / schema iteration input.
 
 ## 21. Three-day delivery plan
 
@@ -574,7 +620,7 @@ If the live model does not improve a long-tail metric, the milestone is not desc
 - Run rules and live hybrid evaluation.
 - Record actual metrics, latency, token usage, and cost.
 - Update architecture, evaluation, demo, README, and learning notes.
-- Resolve the current documentation migration consistency failure.
+- Resolve only the known documentation consistency failure `tests/test_single_agent_migration.py::test_main_docs_describe_single_agent_tool_orchestration`, currently caused by `PROJECT_LEARNING_NOTES.md` missing the required current-architecture phrase `单一 Operations Agent`; do not broaden this into unrelated documentation cleanup.
 - Prepare three demo scenarios: successful LLM routing, malformed-output repair, and provider-failure fallback.
 
 ## 22. Risks and mitigations
