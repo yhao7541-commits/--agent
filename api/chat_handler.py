@@ -1,26 +1,33 @@
-from agents.task_classification_agent import TaskClassificationAgent
-from agents.appointment_agent import AppointmentAgent
-from agents.consultant_agent import ConsultantAgent
 import uuid
 
-# 全局session_id用于单用户场景
-global_session_id = str(uuid.uuid4())
+from agents.operations import OperationsAgent
 
-task_agent = TaskClassificationAgent(
-    AppointmentAgent(session_id=global_session_id), 
-    ConsultantAgent(session_id=global_session_id)
-)
+
+global_conversation_id = str(uuid.uuid4())
+operations_agent = OperationsAgent()
+
 
 async def ProcessUserInput_stream(user_input, state=None, context=None):
     """
-    user_input: 用户输入
-    state: 当前对话状态（如 None, 'classify', 'appointment', 'query', ...）
-    context: 可选，保存多轮对话上下文（如 dict，可存储 agent 的 history 等）
-    返回: (reply, next_state, next_context)
+    兼容旧 Web 流式入口。
+
+    内部只执行单一 OperationsAgent；context 可继续承载多轮预约槽位。
     """
-    # 初始化 context
     if context is None:
         context = {}
 
-    async for token in task_agent.classify_task_stream(user_input):
-        yield token
+    conversation_id = context.get("conversation_id", global_conversation_id)
+    result = operations_agent.run_turn(
+        {
+            "user_id": context.get("user_id", "local_user"),
+            "conversation_id": conversation_id,
+            "message": user_input,
+            "booking_slots": context.get("booking_slots", {}),
+            "booking_slot_sources": context.get("booking_slot_sources", {}),
+        }
+    )
+    context["conversation_id"] = conversation_id
+    context["booking_slots"] = result.get("booking_slots", {})
+    context["booking_slot_sources"] = result.get("booking_slot_sources", {})
+
+    yield result.get("reply", "")

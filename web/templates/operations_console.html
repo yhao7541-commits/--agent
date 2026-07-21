@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Operations Console</title>
+    <title>运营控制台</title>
     <style>
         :root {
             --bg: #f6f8fb;
@@ -273,72 +273,72 @@
     <main class="shell">
         <header>
             <div>
-                <h1>Operations Console</h1>
-                <p class="subtitle">Stateful operations runtime for booking, confirmation, tool governance, memory, RAG grounding, escalation, and trace inspection.</p>
+                <h1>运营控制台</h1>
+                <p class="subtitle">用于预约、确认、工具治理、客户记忆、RAG 引用、人工升级和 trace 检查的状态化运营运行时。</p>
             </div>
-            <div class="status" id="runtime-status">Idle</div>
+            <div class="status" id="runtime-status">空闲</div>
         </header>
 
         <section class="layout">
             <form class="panel" id="operations-form">
-                <h2>Request</h2>
-                <label for="user-id">User ID</label>
+                <h2>请求信息</h2>
+                <label for="user-id">用户 ID</label>
                 <input id="user-id" name="user_id" value="local_user">
 
-                <label for="conversation-id">Conversation ID</label>
+                <label for="conversation-id">会话 ID</label>
                 <input id="conversation-id" name="conversation_id" value="ops_console">
 
-                <label for="message">Message</label>
-                <textarea id="message" name="message">I want to book shoulder relaxation tomorrow at 3pm.</textarea>
+                <label for="message">消息</label>
+                <textarea id="message" name="message">我想预约明天下午 3 点的肩颈放松。</textarea>
 
-                <button type="submit">Run Turn</button>
-                <button type="button" class="secondary" id="confirm-action">Confirm Pending Action</button>
+                <button type="submit">运行本轮</button>
+                <button type="button" class="secondary" id="confirm-action">确认待执行操作</button>
             </form>
 
             <div class="grid">
                 <section class="panel">
-                    <h2>Response</h2>
-                    <div class="kv"><span>Intent</span><span id="intent-value">-</span></div>
+                    <h2>响应结果</h2>
+                    <div class="kv"><span>意图</span><span id="intent-value">-</span></div>
                     <div class="kv"><span>Trace ID</span><span id="trace-id-value">-</span></div>
-                    <div class="reply" id="reply-panel">No turn has run yet.</div>
+                    <div class="reply" id="reply-panel">尚未运行对话。</div>
                 </section>
 
                 <section class="panel" id="confirmation-panel">
-                    <h2>Confirmation</h2>
-                    <div id="confirmation-status"><span class="badge">None</span></div>
+                    <h2>确认信息</h2>
+                    <div id="confirmation-status"><span class="badge">无</span></div>
                     <pre id="confirmation-json">{}</pre>
                 </section>
 
                 <section class="panel" id="tool-calls-panel">
-                    <h2>Tool Calls</h2>
+                    <h2>工具调用</h2>
                     <pre id="tool-calls-json">[]</pre>
                 </section>
 
                 <section class="panel" id="memory-panel">
-                    <h2>Memory</h2>
+                    <h2>客户记忆</h2>
                     <pre id="memory-json">[]</pre>
                 </section>
 
                 <section class="panel" id="rag-panel">
-                    <h2>RAG Sources</h2>
+                    <h2>RAG 来源</h2>
                     <pre id="rag-json">{}</pre>
                 </section>
 
                 <section class="panel" id="trace-panel">
-                    <h2>Trace</h2>
+                    <h2>Trace 详情</h2>
                     <pre id="trace-json">{}</pre>
                 </section>
 
                 <section class="panel" id="trace-timeline-panel">
-                    <h2>Trace Timeline</h2>
+                    <h2>Trace 时间线</h2>
                     <ol class="timeline" id="trace-timeline">
-                        <li><span class="index">-</span><span>No persisted trace loaded.</span></li>
+                        <li><span class="index">-</span><span>尚未加载持久化 trace。</span></li>
                     </ol>
                 </section>
 
                 <section class="panel" id="escalation-panel">
-                    <h2>Escalation</h2>
-                    <div id="escalation-status"><span class="badge">None</span></div>
+                    <h2>人工升级</h2>
+                    <div id="escalation-status"><span class="badge">无</span></div>
                 </section>
             </div>
         </section>
@@ -381,11 +381,11 @@
                 missing_slots: data.missing_slots || []
             });
             $("confirmation-status").innerHTML = data.confirmation_required
-                ? '<span class="badge warn">Required</span>'
-                : '<span class="badge good">Not required</span>';
+                ? '<span class="badge warn">需要确认</span>'
+                : '<span class="badge good">无需确认</span>';
             $("escalation-status").innerHTML = data.escalated
-                ? '<span class="badge bad">Escalated</span>'
-                : '<span class="badge good">Not escalated</span>';
+                ? '<span class="badge bad">已升级</span>'
+                : '<span class="badge good">未升级</span>';
         }
 
         function renderTraceTimeline(events) {
@@ -397,7 +397,7 @@
                 index.className = "index";
                 index.textContent = "-";
                 const body = document.createElement("span");
-                body.textContent = "Trace not found.";
+                body.textContent = "未找到 trace。";
                 item.append(index, body);
                 timeline.appendChild(item);
                 return;
@@ -410,7 +410,7 @@
                 const body = document.createElement("span");
                 const node = document.createElement("div");
                 node.className = "node";
-                node.textContent = `${event.node || "-"} · ${event.event_type || "event"}`;
+                node.textContent = `${event.node || "-"} / ${event.event_type || "事件"}`;
                 const meta = document.createElement("div");
                 meta.className = "meta";
                 meta.textContent = traceEventSummary(event);
@@ -423,10 +423,10 @@
         function traceEventSummary(event) {
             const metadata = event.metadata || {};
             if (event.error) {
-                return event.error.code || "error";
+                return event.error.code || "错误";
             }
             if (metadata.tool_name) {
-                return `${metadata.tool_name} · ${metadata.status || "ok"}`;
+                return `${metadata.tool_name} / ${metadata.status || "ok"}`;
             }
             if (metadata.intent) {
                 return `intent=${metadata.intent}`;
@@ -447,7 +447,7 @@
                 renderTraceTimeline([]);
                 $("trace-json").textContent = asJson({
                     trace_id: traceId,
-                    status: "not persisted"
+                    status: "未持久化"
                 });
                 return;
             }
@@ -461,7 +461,7 @@
         }
 
         async function runTurn(payload) {
-            setStatus("Running", "warn");
+            setStatus("运行中", "warn");
             const response = await fetch("/api/operations/chat", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -474,7 +474,7 @@
             const data = await response.json();
             render(data);
             await loadTrace(data.trace_id);
-            setStatus("Ready", "good");
+            setStatus("就绪", "good");
             return data;
         }
 
@@ -489,7 +489,7 @@
 
         $("confirm-action").addEventListener("click", async () => {
             if (!state.pendingConfirmation) {
-                setStatus("No pending confirmation", "");
+                setStatus("没有待确认操作", "");
                 return;
             }
             await runTurn({

@@ -8,13 +8,13 @@ def test_readme_contains_eval_and_operations_sections():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
     for text in (
-        "Evaluation Results",
-        "Tool governance",
-        "Memory lifecycle",
+        "评估结果",
+        "工具治理",
+        "记忆生命周期",
         "RAG grounding",
-        "Trace replay",
-        "Docker setup",
-        "Known limitations",
+        "Trace 回放",
+        "Docker 设置",
+        "已知限制",
     ):
         assert text in readme
 

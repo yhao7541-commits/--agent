@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from agents.operations.graph import run_operations_turn
+from agents.operations import OperationsAgent
 from observability.replay import format_replay
 from observability.trace_schema import TraceEvent
 from observability.trace_store import JsonlTraceStore
@@ -12,6 +12,7 @@ from observability.trace_store import JsonlTraceStore
 
 router = APIRouter(prefix="/api/operations", tags=["Operations Agent"])
 TRACE_STORE_PATH_ENV = "OPERATIONS_TRACE_STORE_PATH"
+operations_agent = OperationsAgent()
 
 
 class OperationsChatRequest(BaseModel):
@@ -55,7 +56,7 @@ class OperationsTraceResponse(BaseModel):
 
 @router.post("/chat", response_model=OperationsChatResponse)
 async def chat(request: OperationsChatRequest) -> OperationsChatResponse:
-    result = run_operations_turn(request.model_dump())
+    result = operations_agent.run_turn(request.model_dump())
     _persist_trace_events(result)
     return OperationsChatResponse(
         reply=result.get("reply", ""),

@@ -1,3 +1,3 @@
-# Cancellation Policy
+# 取消和改约政策
 
-Customers should cancel or reschedule at least 2 hours before the appointment. Refund or complaint disputes should be reviewed by staff.
+客户应至少在预约开始前 2 小时取消或改约。退款争议和投诉问题需要由门店员工人工审核。

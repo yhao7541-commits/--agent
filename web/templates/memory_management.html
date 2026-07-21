@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户记忆管理</title>
+    <style>
+        :root {
+            --bg: #f5f7fa;
+            --surface: #ffffff;
+            --line: #d5dbe5;
+            --text: #17202e;
+            --muted: #5d6877;
+            --primary: #146c5d;
+            --primary-dark: #0f5146;
+            --warn: #a15c00;
+            --bad: #b42318;
+            --good: #0f7b45;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .shell {
+            width: min(1360px, 100%);
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .toolbar,
+        .workspace,
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto auto auto;
+            gap: 10px;
+            align-items: end;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 9px 10px;
+            color: var(--text);
+            font: inherit;
+            background: #fff;
+        }
+
+        textarea {
+            min-height: 88px;
+            resize: vertical;
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 38px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .checkbox input {
+            width: auto;
+        }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 12px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: var(--primary-dark);
+        }
+
+        button.secondary {
+            background: #edf1f5;
+            border: 1px solid var(--line);
+            color: var(--text);
+        }
+
+        button.danger {
+            background: var(--bad);
+        }
+
+        .workspace {
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 11px 12px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        th {
+            background: #eef2f6;
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        td.content {
+            min-width: 240px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .actions button {
+            padding: 7px 9px;
+            font-size: 12px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: #f7f9fb;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .badge.good {
+            color: var(--good);
+            border-color: #b9dfc4;
+            background: #edf9f1;
+        }
+
+        .badge.warn {
+            color: var(--warn);
+            border-color: #edcf91;
+            background: #fff7e8;
+        }
+
+        .badge.bad {
+            color: var(--bad);
+            border-color: #f0b4ae;
+            background: #fff1ef;
+        }
+
+        .panel {
+            margin-top: 14px;
+            padding: 14px;
+        }
+
+        .panel h2 {
+            margin: 0 0 10px;
+            font-size: 16px;
+            letter-spacing: 0;
+        }
+
+        .edit-grid {
+            display: grid;
+            grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) minmax(130px, 180px);
+            gap: 10px;
+            align-items: end;
+        }
+
+        pre {
+            min-height: 80px;
+            max-height: 220px;
+            overflow: auto;
+            margin: 0;
+            padding: 10px;
+            border-radius: 8px;
+            background: #eef2f6;
+            color: var(--text);
+            font-size: 12px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        @media (max-width: 860px) {
+            .shell {
+                padding: 14px;
+            }
+
+            header,
+            .toolbar,
+            .edit-grid {
+                display: block;
+            }
+
+            .toolbar > *,
+            .edit-grid > * {
+                margin-bottom: 10px;
+            }
+
+            .workspace {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="shell">
+        <header>
+            <div>
+                <h1>客户记忆管理</h1>
+                <p class="subtitle">查看客户记忆、审批敏感事实、编辑版本，并软删除记录。</p>
+            </div>
+            <span class="badge" id="status-badge">空闲</span>
+        </header>
+
+        <section class="toolbar" aria-label="记忆筛选">
+            <div>
+                <label for="user-id">用户 ID</label>
+                <input id="user-id" value="local_user">
+            </div>
+            <label class="checkbox">
+                <input id="include-inactive" type="checkbox" checked>
+                包含停用
+            </label>
+            <label class="checkbox">
+                <input id="include-deleted" type="checkbox">
+                包含已删除
+            </label>
+            <button type="button" id="load-memory">加载记忆</button>
+        </section>
+
+        <section class="workspace" aria-label="记忆表格">
+            <table id="memory-table">
+                <thead>
+                    <tr>
+                        <th>类型</th>
+                        <th>内容</th>
+                        <th>状态</th>
+                        <th>审核</th>
+                        <th>版本</th>
+                        <th>过期时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="memory-table-body">
+                    <tr>
+                        <td colspan="7">尚未加载数据。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section class="panel" aria-label="编辑记忆">
+            <h2>编辑选中记忆</h2>
+            <div class="edit-grid">
+                <div>
+                    <label for="selected-memory-id">记忆 ID</label>
+                    <input id="selected-memory-id" readonly>
+                </div>
+                <div>
+                    <label for="memory-content">内容</label>
+                    <textarea id="memory-content"></textarea>
+                </div>
+                <button type="button" data-action="edit-memory" id="save-memory">保存修改</button>
+            </div>
+        </section>
+
+        <section class="panel" aria-label="记忆事件">
+            <h2>事件</h2>
+            <pre id="memory-events">[]</pre>
+        </section>
+    </main>
+
+    <script>
+        const $ = (id) => document.getElementById(id);
+        const state = {memories: []};
+
+        function setStatus(text, kind = "") {
+            const badge = $("status-badge");
+            badge.className = kind ? `badge ${kind}` : "badge";
+            badge.textContent = text;
+        }
+
+        function asJson(value) {
+            return JSON.stringify(value ?? [], null, 2);
+        }
+
+        function userId() {
+            return $("user-id").value || "local_user";
+        }
+
+        async function loadMemories() {
+            setStatus("加载中", "warn");
+            const params = new URLSearchParams({
+                include_inactive: String($("include-inactive").checked),
+                include_deleted: String($("include-deleted").checked)
+            });
+            const response = await fetch(`/api/memory/users/${encodeURIComponent(userId())}/memories?${params}`);
+            if (!response.ok) {
+                setStatus(`HTTP ${response.status}`, "bad");
+                return;
+            }
+            const data = await response.json();
+            state.memories = data.memories || [];
+            renderMemories();
+            setStatus("就绪", "good");
+        }
+
+        function renderMemories() {
+            const body = $("memory-table-body");
+            body.innerHTML = "";
+            if (state.memories.length === 0) {
+                const row = document.createElement("tr");
+                const cell = document.createElement("td");
+                cell.colSpan = 7;
+                cell.textContent = "暂无记忆记录。";
+                row.appendChild(cell);
+                body.appendChild(row);
+                return;
+            }
+
+            state.memories.forEach((memory) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${escapeHtml(memory.type || "")}</td>
+                    <td class="content">${escapeHtml(memory.content || "")}</td>
+                    <td>${statusBadge(memory.status)}</td>
+                    <td>${statusBadge(memory.review_status)}</td>
+                    <td>${memory.version || 1}</td>
+                    <td>${escapeHtml(memory.expires_at || "-")}</td>
+                    <td><div class="actions">
+                        <button type="button" class="secondary" data-action="select-memory" data-id="${memory.memory_id}">选择</button>
+                        <button type="button" data-action="approve-memory" data-id="${memory.memory_id}">通过</button>
+                        <button type="button" class="secondary" data-action="reject-memory" data-id="${memory.memory_id}">驳回</button>
+                        <button type="button" class="danger" data-action="delete-memory" data-id="${memory.memory_id}">删除</button>
+                    </div></td>
+                `;
+                body.appendChild(row);
+            });
+        }
+
+        function statusBadge(value) {
+            const text = value || "-";
+            const kind = text === "active" || text === "approved" ? "good" : text === "deleted" || text === "rejected" ? "bad" : "warn";
+            return `<span class="badge ${kind}">${escapeHtml(statusText(text))}</span>`;
+        }
+
+        function statusText(value) {
+            return {
+                active: "活跃",
+                inactive: "停用",
+                pending_review: "待审核",
+                approved: "已通过",
+                rejected: "已驳回",
+                deleted: "已删除"
+            }[value] || value;
+        }
+
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, (char) => ({
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+            }[char]));
+        }
+
+        async function reviewMemory(memoryId, action) {
+            setStatus(action === "approve" ? "审批通过中" : "驳回中", "warn");
+            const response = await fetch(`/api/memory/memories/${encodeURIComponent(memoryId)}/${action}`, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({user_id: userId(), actor: "ops_ui", reason: `${action} from memory page`})
+            });
+            if (!response.ok) {
+                setStatus(`HTTP ${response.status}`, "bad");
+                return;
+            }
+            await loadEvents(memoryId);
+            await loadMemories();
+        }
+
+        async function deleteMemory(memoryId) {
+            setStatus("删除中", "warn");
+            const params = new URLSearchParams({
+                user_id: userId(),
+                actor: "ops_ui",
+                reason: "delete from memory page"
+            });
+            const response = await fetch(`/api/memory/memories/${encodeURIComponent(memoryId)}?${params}`, {
+                method: "DELETE"
+            });
+            if (!response.ok) {
+                setStatus(`HTTP ${response.status}`, "bad");
+                return;
+            }
+            await loadEvents(memoryId);
+            await loadMemories();
+        }
+
+        async function saveMemory() {
+            const memoryId = $("selected-memory-id").value;
+            if (!memoryId) {
+                setStatus("请先选择记忆");
+                return;
+            }
+            setStatus("保存中", "warn");
+            const response = await fetch(`/api/memory/memories/${encodeURIComponent(memoryId)}`, {
+                method: "PATCH",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    user_id: userId(),
+                    content: $("memory-content").value,
+                    actor: "ops_ui",
+                    reason: "edit from memory page"
+                })
+            });
+            if (!response.ok) {
+                setStatus(`HTTP ${response.status}`, "bad");
+                return;
+            }
+            await loadEvents(memoryId);
+            await loadMemories();
+        }
+
+        async function loadEvents(memoryId) {
+            const response = await fetch(`/api/memory/memories/${encodeURIComponent(memoryId)}/events`);
+            if (!response.ok) {
+                $("memory-events").textContent = "[]";
+                return;
+            }
+            const data = await response.json();
+            $("memory-events").textContent = asJson(data.events || []);
+        }
+
+        $("load-memory").addEventListener("click", loadMemories);
+        $("save-memory").addEventListener("click", saveMemory);
+        $("memory-table-body").addEventListener("click", async (event) => {
+            const button = event.target.closest("button[data-action]");
+            if (!button) {
+                return;
+            }
+            const action = button.dataset.action;
+            const memoryId = button.dataset.id;
+            const memory = state.memories.find((item) => item.memory_id === memoryId);
+            if (action === "select-memory" && memory) {
+                $("selected-memory-id").value = memory.memory_id;
+                $("memory-content").value = memory.content || "";
+                await loadEvents(memoryId);
+            } else if (action === "approve-memory") {
+                await reviewMemory(memoryId, "approve");
+            } else if (action === "reject-memory") {
+                await reviewMemory(memoryId, "reject");
+            } else if (action === "delete-memory") {
+                await deleteMemory(memoryId);
+            }
+        });
+    </script>
+</body>
+</html>

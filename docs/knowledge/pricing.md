@@ -1,3 +1,3 @@
-# Pricing
+# 价格说明
 
-Final pricing follows the store price list. Common service prices can vary by duration, staff level, and active promotion.
+最终价格以门店价目表为准。常见服务价格会受到服务时长、技师级别和当前优惠活动影响。

@@ -1,4 +1,9 @@
-SENSITIVE_MEMORY_TYPES = {"constraint", "policy_note"}
+SENSITIVE_MEMORY_TYPES = {
+    "constraint",
+    "policy_note",
+    "service_contraindication",
+    "marketing_consent",
+}
 VAGUE_MARKERS = ("随便", "可能", "也许", "看情况", "都行")
 
 

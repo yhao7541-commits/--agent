@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from api.operations import router
 from observability.trace_store import JsonlTraceStore
 from tools.customer_tools import reset_customer_memory_store
+from tools.customer_tools import get_customer_memory_store
+from memory.customer_memory import MemoryProposal
 
 
 def make_client():
@@ -307,6 +309,113 @@ def test_operations_chat_exposes_applied_customer_memory_for_booking():
         for memory in body["applied_customer_memories"]
     )
     assert "raw_prompt" not in body
+
+
+def test_operations_chat_keeps_sensitive_memory_pending_review_after_confirmation():
+    reset_customer_memory_store()
+    client = make_client()
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_sensitive_memory",
+            "conversation_id": "conv_sensitive_memory",
+            "message": "我对精油过敏，请以后不要用",
+        },
+    ).json()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_sensitive_memory",
+            "conversation_id": "conv_sensitive_memory",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["executed_tools"][0]["output"]["review_status"] == "pending"
+    assert get_customer_memory_store().list_user_memories("user_sensitive_memory") == []
+    pending_review = get_customer_memory_store().list_user_memories(
+        "user_sensitive_memory",
+        include_inactive=True,
+    )
+    assert pending_review[0].status == "pending_review"
+
+
+def test_operations_chat_routes_real_chinese_delete_memory_to_confirmation():
+    reset_customer_memory_store()
+    store = get_customer_memory_store()
+    created = store.upsert(
+        user_id="user_delete_memory",
+        proposal=MemoryProposal(
+            type="room_preference",
+            content="喜欢安静房间",
+            evidence="用户说喜欢安静房间",
+            confidence=0.9,
+            sensitivity="normal",
+            requires_confirmation=False,
+        ),
+    ).memory
+    client = make_client()
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_delete_memory",
+            "conversation_id": "conv_delete_memory",
+            "message": "请删除安静房间这条记忆",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["intent"] == "delete_memory"
+    assert body["confirmation_required"] is True
+    assert body["confirmation_request"]["tool_name"] == "delete_customer_memory"
+    assert body["confirmation_request"]["arguments"]["memory_id"] == created.id
+
+
+def test_operations_chat_can_delete_pending_sensitive_memory_without_using_it_as_context():
+    reset_customer_memory_store()
+    client = make_client()
+    pending = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_delete_pending_memory",
+            "conversation_id": "conv_delete_pending_memory",
+            "message": "我对精油过敏，请以后不要用",
+        },
+    ).json()
+    client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_delete_pending_memory",
+            "conversation_id": "conv_delete_pending_memory",
+            "message": "确认",
+            "confirmed_tool_name": pending["confirmation_request"]["tool_name"],
+            "confirmed_tool_arguments": pending["confirmation_request"]["arguments"],
+            "confirmation_token": pending["confirmation_request"]["confirmation_token"],
+        },
+    )
+
+    response = client.post(
+        "/api/operations/chat",
+        json={
+            "user_id": "user_delete_pending_memory",
+            "conversation_id": "conv_delete_pending_memory",
+            "message": "请删除过敏这条记忆",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["customer_context"]["known_preferences"] == []
+    assert body["confirmation_required"] is True
+    assert body["confirmation_request"]["tool_name"] == "delete_customer_memory"
 
 
 def test_operations_router_is_registered_in_api_router_list():

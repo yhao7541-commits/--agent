@@ -1,15 +1,15 @@
-# Security Policy
+# 安全策略
 
-The current operations runtime follows conservative guardrails:
+当前运营运行时遵循保守护栏：
 
-- Write tools cannot execute without explicit confirmation.
-- Sensitive memory writes and deletes require confirmation.
-- Unknown tools return structured errors.
-- Invalid tool arguments do not call handlers.
-- RAG chunks are treated as source content, not instructions.
-- API responses do not expose raw prompts.
-- Trace events should be reviewed before sharing externally because they can contain user-provided text.
+- 写工具没有显式确认就不能执行。
+- 敏感记忆的写入和删除都需要确认。
+- 未知工具返回结构化错误。
+- 工具参数非法时不会调用 handler。
+- RAG chunk 被视为来源内容，不会被当作指令执行。
+- API 响应不暴露原始 prompt。
+- trace event 可能包含用户提供的文本，对外分享前应先审查。
 
-## Escalation Triggers
+## 人工介入触发条件
 
-The runtime escalates low-confidence requests, medical or safety concerns, refund disputes, complaints, repeated booking tool failures, and other cases where automation should not decide alone.
+当请求置信度低，涉及医疗或安全顾虑、退款争议、投诉、预约工具连续失败，或出现其他不适合由自动化单独决策的情况时，运行时会升级到人工处理。

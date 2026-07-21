@@ -25,7 +25,10 @@ def test_operations_console_renders_runtime_panels():
 
     assert response.status_code == 200
     html = response.text
-    assert "Operations Console" in html
+    assert "运营控制台" in html
+    assert "Operations Console" not in html
+    assert "Run Turn" not in html
+    assert "Confirm Pending Action" not in html
     assert 'id="confirmation-panel"' in html
     assert 'id="tool-calls-panel"' in html
     assert 'id="memory-panel"' in html

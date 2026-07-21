@@ -12,6 +12,7 @@ from security.guardrails import (
     detect_prompt_injection,
     is_valid_confirmation_token,
 )
+from tools.customer_tools import get_customer_memory_store
 from tools.gateway import ToolGateway
 from tools.registry import build_default_tool_registry
 from tools.schemas import ToolExecutionContext
@@ -950,7 +951,7 @@ def _is_policy_question(message: str) -> bool:
 
 def _match_memory_for_deletion(state: OperationsAgentState) -> dict[str, Any] | None:
     message = state.get("message", "")
-    memories = state.get("customer_context", {}).get("memories", [])
+    memories = _memory_records_for_deletion(state)
     for memory in memories:
         content = memory.get("content", "")
         if content and content in message:
@@ -958,6 +959,32 @@ def _match_memory_for_deletion(state: OperationsAgentState) -> dict[str, Any] | 
         if any(keyword in message and keyword in content for keyword in ("安静", "热闹", "大力度", "营销", "过敏")):
             return memory
     return None
+
+
+def _memory_records_for_deletion(state: OperationsAgentState) -> list[dict[str, Any]]:
+    records = list(state.get("customer_context", {}).get("memories", []))
+    seen_ids = {record.get("memory_id") or record.get("id") for record in records}
+    store = get_customer_memory_store()
+    for memory in store.list_user_memories(
+        state.get("user_id", "local_user"),
+        include_inactive=True,
+        include_deleted=False,
+    ):
+        if memory.id in seen_ids:
+            continue
+        records.append(
+            {
+                "memory_id": memory.id,
+                "type": memory.type,
+                "content": memory.content,
+                "sensitivity": memory.sensitivity,
+                "status": memory.status,
+                "review_status": memory.review_status,
+                "version": memory.version,
+            }
+        )
+        seen_ids.add(memory.id)
+    return records
 
 
 def _has_unsafe_confirmed_tool_request(state: OperationsAgentState) -> bool:

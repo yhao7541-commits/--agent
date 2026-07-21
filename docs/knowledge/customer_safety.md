@@ -1,3 +1,3 @@
-# Customer Safety
+# 客户安全
 
-Customers with injuries, severe pain, allergies, pregnancy, or medical concerns should receive staff review before service recommendations.
+如果客户存在受伤、剧烈疼痛、过敏、怀孕或其他医疗顾虑，在推荐服务前应先交由门店员工审核。

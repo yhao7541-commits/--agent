@@ -1,3 +1,3 @@
-# Booking Policy
+# 预约政策
 
-If a customer is more than 15 minutes late, staff may shorten the session or offer a reschedule based on room and staff availability.
+如果客户迟到超过 15 分钟，门店员工可以根据房间和技师可用情况缩短服务时长，或为客户提供改约选项。
