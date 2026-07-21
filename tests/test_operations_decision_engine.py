@@ -9,6 +9,13 @@ from agents.operations.decision_models import BookingSlotCandidates
 from agents.operations import decision_prompt
 from agents.operations.decision_prompt import build_initial_prompt, build_repair_prompt
 
+from operations_decision_fakes import (
+    FakeClock,
+    FakeOutcome,
+    ProgrammableDecisionClient,
+    model_result,
+)
+
 
 def _json_block(prompt, start_marker, end_marker):
     return json.loads(prompt.split(start_marker, 1)[1].split(end_marker, 1)[0].strip())
@@ -362,3 +369,920 @@ def test_repair_scans_a_bounded_prefix_and_maps_constraint_errors():
             "type": "constraint_error",
         }
     ]
+
+
+def _decision_json(*, intent="booking", confidence=0.9):
+    return json.dumps(
+        {
+            "intent": intent,
+            "confidence": confidence,
+            "extracted_slots": {"date": "2026-07-23"},
+            "ambiguities": [],
+            "risk_flags": [],
+            "suggested_action": "collect_booking_details",
+            "decision_summary": "Booking requested.",
+        }
+    )
+
+
+def _fallback_decision(original_task):
+    return {
+        "intent": "escalation",
+        "confidence": 1.0,
+        "extracted_slots": {},
+        "ambiguities": [],
+        "risk_flags": [],
+        "suggested_action": "use_rules",
+        "decision_summary": "Deterministic fallback.",
+    }
+
+
+def _engine(client, clock, *, fallback=_fallback_decision, **setting_overrides):
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings
+
+    settings = {
+        "mode": "hybrid",
+        "max_attempts": 3,
+        "per_call_timeout_seconds": 2,
+        "total_deadline_seconds": 5,
+        "minimum_confidence": 0.6,
+    }
+    settings.update(setting_overrides)
+    return HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(**settings),
+        fallback=fallback,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=lambda: 0.0,
+    )
+
+
+def test_decision_engine_first_call_success_has_validated_llm_metadata():
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings, ModelDecision
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(_decision_json(), input_tokens=13, output_tokens=7), 0.25)],
+    )
+    engine = HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=3,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=5,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=lambda: 0.0,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert isinstance(result.decision, ModelDecision)
+    assert result.decision.intent == "booking"
+    assert result.metadata.model_dump() == {
+        "source": "llm",
+        "provider": "fake-provider",
+        "model": "fake-model",
+        "attempt_count": 1,
+        "repair_count": 0,
+        "latency_ms": 250,
+        "input_tokens": 13,
+        "output_tokens": 7,
+        "fallback_reason": None,
+    }
+    assert result.errors == []
+    assert client.calls[0].timeout_seconds == 2
+
+
+def test_decision_engine_retries_provider_timeout_then_succeeds():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("timeout secret"), 0.1),
+            FakeOutcome(model_result(_decision_json()), 0.2),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.decision.intent == "booking"
+    assert result.metadata.source == "llm"
+    assert result.metadata.attempt_count == 2
+    assert result.metadata.repair_count == 0
+    assert result.metadata.latency_ms == 350
+    assert [error.model_dump() for error in result.errors] == [
+        {"code": "provider_timeout", "attempt": 1, "retryable": True}
+    ]
+
+
+def test_decision_engine_retries_rate_limit_then_succeeds():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(FakeHTTPError(429)),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.attempt_count == 2
+    assert [error.code for error in result.errors] == ["rate_limited"]
+    assert result.errors[0].retryable is True
+
+
+def test_decision_engine_retries_http_408_as_provider_timeout():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(FakeHTTPError(408)),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert result.metadata.attempt_count == 2
+    assert [error.model_dump() for error in result.errors] == [
+        {"code": "provider_timeout", "attempt": 1, "retryable": True}
+    ]
+
+
+def test_decision_engine_retries_provider_5xx_then_succeeds():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(FakeHTTPError(503)),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.attempt_count == 2
+    assert [error.code for error in result.errors] == ["provider_5xx"]
+
+
+def test_decision_engine_repairs_invalid_json_and_counts_all_tokens():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(
+                model_result(
+                    "not-json secret-response", input_tokens=3, output_tokens=2
+                )
+            ),
+            FakeOutcome(
+                model_result(
+                    _decision_json(),
+                    provider=None,
+                    model=None,
+                    input_tokens=10,
+                    output_tokens=5,
+                )
+            ),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.attempt_count == 2
+    assert result.metadata.repair_count == 1
+    assert result.metadata.input_tokens == 13
+    assert result.metadata.output_tokens == 7
+    assert result.metadata.provider == "fake-provider"
+    assert result.metadata.model == "fake-model"
+    assert [error.code for error in result.errors] == ["invalid_json"]
+    assert client.calls[1].prompt != client.calls[0].prompt
+    assert "REPAIR_PAYLOAD_JSON:" in client.calls[1].prompt
+    assert "not-json" not in client.calls[1].prompt
+    assert "secret-response" not in client.calls[1].prompt
+
+
+def test_decision_engine_schema_repair_contains_only_sanitized_fields():
+    invalid = json.dumps(
+        {
+            "intent": "booking",
+            "confidence": "secret-invalid-input",
+            "suggested_action": "book",
+            "decision_summary": "Traceback raw-msg secret-token",
+        }
+    )
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(model_result(invalid)),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    repair_prompt = client.calls[1].prompt
+    assert result.metadata.repair_count == 1
+    assert [error.code for error in result.errors] == ["schema_validation_error"]
+    assert '"location":"confidence"' in repair_prompt
+    assert "type_error" in repair_prompt
+    for forbidden in (
+        "secret-invalid-input",
+        "Traceback",
+        "raw-msg",
+        "secret-token",
+        '"input"',
+        '"msg"',
+    ):
+        assert forbidden not in repair_prompt
+
+
+def test_timeout_and_invalid_json_share_three_call_budget_without_fourth_call():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("secret-timeout")),
+            FakeOutcome(model_result("bad-json-one")),
+            FakeOutcome(model_result("bad-json-two")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 3
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.attempt_count == 3
+    assert result.metadata.fallback_reason == "invalid_json"
+    assert [error.code for error in result.errors] == [
+        "provider_timeout",
+        "invalid_json",
+        "invalid_json",
+    ]
+
+
+def test_each_model_timeout_is_clamped_to_remaining_total_deadline():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("first"), 0.4),
+            FakeOutcome(model_result(_decision_json()), 0.1),
+        ],
+    )
+
+    result = _engine(
+        client,
+        clock,
+        per_call_timeout_seconds=5,
+        total_deadline_seconds=1,
+    ).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert [call.timeout_seconds for call in client.calls] == pytest.approx([1.0, 0.55])
+
+
+def test_response_returned_after_deadline_is_rejected_with_stable_fallback():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(_decision_json()), 1.01)],
+    )
+
+    result = _engine(
+        client,
+        clock,
+        total_deadline_seconds=1,
+    ).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.decision.intent == "escalation"
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.attempt_count == 1
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+    assert [error.model_dump() for error in result.errors] == [
+        {
+            "code": "total_deadline_exceeded",
+            "attempt": 1,
+            "retryable": False,
+        }
+    ]
+
+
+def test_backoff_jitter_cannot_oversleep_and_exhaustion_prevents_next_call():
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("secret"), 0.9),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+    engine = HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=3,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=1,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=lambda: 999.0,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert clock.sleep_calls == pytest.approx([0.1])
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+    assert [error.code for error in result.errors] == [
+        "provider_timeout",
+        "total_deadline_exceeded",
+    ]
+
+
+def test_model_calls_are_strictly_synchronous_and_never_overlap():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("first")),
+            FakeOutcome(TimeoutError("second")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert client.max_active_calls == 1
+    assert client.active_calls == 0
+
+
+def test_authentication_401_does_not_retry_and_counts_provider_attempt():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(FakeHTTPError(401))])
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.attempt_count == 1
+    assert result.metadata.fallback_reason == "authentication_error"
+    assert result.errors[0].retryable is False
+
+
+def test_permission_403_does_not_retry_and_counts_provider_attempt():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(FakeHTTPError(403))])
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.attempt_count == 1
+    assert result.metadata.fallback_reason == "authentication_error"
+
+
+def test_local_configuration_failure_reports_zero_provider_attempts():
+    from config.model_provider import ModelConfigurationError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(ModelConfigurationError("secret local config"))],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.attempt_count == 0
+    assert result.metadata.fallback_reason == "configuration_error"
+    assert result.errors[0].attempt == 0
+    assert result.errors[0].retryable is False
+
+
+def test_unsupported_provider_4xx_is_deterministic_configuration_error():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(FakeHTTPError(422))])
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.attempt_count == 1
+    assert result.metadata.fallback_reason == "configuration_error"
+    assert result.errors[0].retryable is False
+
+
+def test_retryable_transport_failure_retries_then_succeeds():
+    from operations_decision_fakes import FakeRetryableTransportError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(FakeRetryableTransportError("secret network target")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.attempt_count == 2
+    assert [error.code for error in result.errors] == ["transport_error"]
+
+
+def test_incomplete_usage_keeps_that_token_total_unavailable():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(
+                model_result("not-json", input_tokens=None, output_tokens=2)
+            ),
+            FakeOutcome(
+                model_result(_decision_json(), input_tokens=10, output_tokens=5)
+            ),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.input_tokens is None
+    assert result.metadata.output_tokens == 7
+
+
+def test_low_confidence_uses_rule_fallback_with_stable_reason():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(_decision_json(confidence=0.59)))],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.fallback_reason == "low_confidence"
+    assert [error.model_dump() for error in result.errors] == [
+        {"code": "low_confidence", "attempt": 1, "retryable": False}
+    ]
+
+
+def test_unknown_intent_uses_low_confidence_fallback_reason():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(_decision_json(intent="unknown", confidence=1.0)))],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.fallback_reason == "low_confidence"
+    assert result.errors[0].code == "low_confidence"
+
+
+def test_retry_budget_exhaustion_falls_back_with_final_stable_code():
+    from operations_decision_fakes import FakeHTTPError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(FakeHTTPError(500)),
+            FakeOutcome(FakeHTTPError(502)),
+            FakeOutcome(FakeHTTPError(503)),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 3
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.fallback_reason == "provider_5xx"
+    assert [error.code for error in result.errors] == [
+        "provider_5xx",
+        "provider_5xx",
+        "provider_5xx",
+    ]
+
+
+def test_fallback_programming_error_remains_visible():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(TimeoutError("secret"))])
+
+    def broken_fallback(original_task):
+        raise RuntimeError("fallback bug must remain visible")
+
+    with pytest.raises(RuntimeError, match="fallback bug must remain visible"):
+        _engine(
+            client,
+            clock,
+            fallback=broken_fallback,
+            max_attempts=1,
+        ).decide("MINIMIZED ORIGINAL TASK")
+
+
+def test_fallback_validation_error_remains_visible():
+    from pydantic import ValidationError
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(TimeoutError("secret"))])
+
+    with pytest.raises(ValidationError):
+        _engine(
+            client,
+            clock,
+            fallback=lambda original_task: {"intent": "not-valid"},
+            max_attempts=1,
+        ).decide("MINIMIZED ORIGINAL TASK")
+
+
+def test_structured_errors_never_persist_raw_exception_prompt_or_response():
+    original_task = "MINIMIZED ORIGINAL TASK secret-prompt"
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("secret-exception traceback")),
+            FakeOutcome(model_result("secret-response invalid json")),
+        ],
+    )
+
+    result = _engine(client, clock, max_attempts=2).decide(original_task)
+    serialized = result.model_dump_json()
+
+    assert [error.code for error in result.errors] == [
+        "provider_timeout",
+        "invalid_json",
+    ]
+    for forbidden in (
+        "secret-exception",
+        "traceback",
+        "secret-prompt",
+        "secret-response",
+        original_task,
+    ):
+        assert forbidden not in serialized
+
+
+def test_deadline_is_rechecked_after_validation_before_accepting_decision(monkeypatch):
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings, ModelDecision
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(_decision_json()), 0.5)],
+    )
+    real_validate = ModelDecision.model_validate
+
+    def slow_validation(cls, value, *args, **kwargs):
+        decision = real_validate(value, *args, **kwargs)
+        clock.advance(0.51)
+        return decision
+
+    monkeypatch.setattr(ModelDecision, "model_validate", classmethod(slow_validation))
+    engine = HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=1,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=1,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=lambda: 0.0,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "rule_fallback"
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+
+
+def test_common_http_timeout_type_retries_as_provider_timeout():
+    import httpx
+
+    clock = FakeClock()
+    timeout = httpx.ReadTimeout(
+        "secret timeout",
+        request=httpx.Request("POST", "https://secret.invalid"),
+    )
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(timeout),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert [error.code for error in result.errors] == ["provider_timeout"]
+
+
+def test_common_http_connection_type_retries_as_transport_error():
+    import httpx
+
+    clock = FakeClock()
+    connection_error = httpx.ConnectError(
+        "secret endpoint",
+        request=httpx.Request("POST", "https://secret.invalid"),
+    )
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(connection_error),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert [error.code for error in result.errors] == ["transport_error"]
+
+
+def test_jitter_computation_time_reduces_the_remaining_sleep_allowance():
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("secret"), 0.9),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    def slow_jitter():
+        clock.advance(0.09)
+        return 999.0
+
+    engine = HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=3,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=1,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=slow_jitter,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert clock.sleep_calls == pytest.approx([0.01])
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+
+
+def test_repair_prompt_construction_time_consumes_the_total_deadline(monkeypatch):
+    import agents.operations.decision_engine as decision_engine
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(model_result("invalid-json"), 0.9),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+    real_builder = decision_engine.build_repair_prompt
+
+    def slow_repair_builder(original_task, errors):
+        clock.advance(0.1)
+        return real_builder(original_task, errors)
+
+    monkeypatch.setattr(decision_engine, "build_repair_prompt", slow_repair_builder)
+
+    result = _engine(
+        client,
+        clock,
+        total_deadline_seconds=1,
+    ).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+    assert [error.code for error in result.errors] == [
+        "invalid_json",
+        "total_deadline_exceeded",
+    ]
+
+
+def test_local_safety_rejection_does_not_retry():
+    from agents.operations.decision_engine import LocalDecisionRejection
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(LocalDecisionRejection("secret local safety reason")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert len(client.calls) == 1
+    assert result.metadata.attempt_count == 0
+    assert result.metadata.fallback_reason == "business_validation_error"
+    assert result.errors[0].retryable is False
+
+
+def test_exception_returned_after_deadline_uses_deadline_fallback_code():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(TimeoutError("secret late timeout"), 1.01)],
+    )
+
+    result = _engine(
+        client,
+        clock,
+        max_attempts=1,
+        total_deadline_seconds=1,
+    ).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.fallback_reason == "total_deadline_exceeded"
+    assert [error.code for error in result.errors] == [
+        "provider_timeout",
+        "total_deadline_exceeded",
+    ]
+
+
+def test_exception_metadata_attributes_are_not_persisted_as_trusted_metadata():
+    error = TimeoutError("secret exception text")
+    error.provider = "sk-live-secret-provider"
+    error.model = "raw-secret-model"
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(clock, [FakeOutcome(error)])
+
+    result = _engine(
+        client,
+        clock,
+        max_attempts=1,
+    ).decide("MINIMIZED ORIGINAL TASK")
+    serialized = result.model_dump_json()
+
+    assert result.metadata.provider is None
+    assert result.metadata.model is None
+    assert "sk-live-secret-provider" not in serialized
+    assert "raw-secret-model" not in serialized
+
+
+def test_engine_preserves_business_fields_without_routing_on_them():
+    payload = json.loads(_decision_json())
+    payload["ambiguities"] = ["preferred_staff"]
+    payload["risk_flags"] = ["requires_business_review"]
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(model_result(json.dumps(payload)))],
+    )
+
+    result = _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert result.metadata.fallback_reason is None
+    assert result.decision.ambiguities == ["preferred_staff"]
+    assert result.decision.risk_flags == ["requires_business_review"]
+
+
+def test_unknown_client_programming_error_is_reraised_without_fallback():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(RuntimeError("client programming defect"))],
+    )
+    fallback_calls = []
+
+    def fallback(original_task):
+        fallback_calls.append(original_task)
+        return _fallback_decision(original_task)
+
+    with pytest.raises(RuntimeError, match="client programming defect"):
+        _engine(client, clock, fallback=fallback).decide("MINIMIZED ORIGINAL TASK")
+
+    assert fallback_calls == []
+
+
+def test_generic_permission_error_is_not_treated_as_local_rejection():
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [FakeOutcome(PermissionError("generic permission defect"))],
+    )
+
+    with pytest.raises(PermissionError, match="generic permission defect"):
+        _engine(client, clock).decide("MINIMIZED ORIGINAL TASK")
+
+
+def test_default_jitter_uses_patchable_random_source(monkeypatch):
+    import agents.operations.decision_engine as decision_engine
+    from agents.operations.decision_models import DecisionSettings
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("retry")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+    monkeypatch.setattr(decision_engine.random, "random", lambda: 0.75)
+    engine = decision_engine.HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=2,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=5,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert clock.sleep_calls == pytest.approx([0.125])
+
+
+def test_huge_integer_jitter_does_not_crash_retry():
+    from agents.operations.decision_engine import HybridDecisionEngine
+    from agents.operations.decision_models import DecisionSettings
+
+    clock = FakeClock()
+    client = ProgrammableDecisionClient(
+        clock,
+        [
+            FakeOutcome(TimeoutError("retry")),
+            FakeOutcome(model_result(_decision_json())),
+        ],
+    )
+    engine = HybridDecisionEngine(
+        client=client,
+        settings=DecisionSettings(
+            mode="hybrid",
+            max_attempts=2,
+            per_call_timeout_seconds=2,
+            total_deadline_seconds=5,
+        ),
+        fallback=_fallback_decision,
+        monotonic_fn=clock.monotonic,
+        sleep_fn=clock.sleep,
+        jitter_fn=lambda: 10**10_000,
+    )
+
+    result = engine.decide("MINIMIZED ORIGINAL TASK")
+
+    assert result.metadata.source == "llm"
+    assert clock.sleep_calls == pytest.approx([0.05])
+
+
+@pytest.mark.parametrize("invalid_elapsed", [-1.0, float("inf"), float("nan")])
+def test_fake_outcome_rejects_negative_or_nonfinite_elapsed_time(invalid_elapsed):
+    with pytest.raises(ValueError):
+        FakeOutcome(model_result(_decision_json()), invalid_elapsed)
+
+
+@pytest.mark.parametrize("invalid_sleep", [-1.0, float("inf"), float("nan")])
+def test_fake_clock_rejects_negative_or_nonfinite_sleep(invalid_sleep):
+    with pytest.raises(ValueError):
+        FakeClock().sleep(invalid_sleep)
