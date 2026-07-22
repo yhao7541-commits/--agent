@@ -270,6 +270,14 @@ def decide_request(
     state: OperationsAgentState,
     decision_engine: HybridDecisionEngine | None = None,
 ) -> OperationsAgentState:
+    requested_mode = os.getenv("OPERATIONS_DECISION_MODE", "rules").strip().lower()
+    if requested_mode == "hybrid":
+        append_trace(
+            state,
+            "decide_request",
+            {"mode": "hybrid"},
+            event_type="llm_decision_started",
+        )
     try:
         settings = DecisionSettings.from_env()
     except ValueError:
@@ -1051,6 +1059,7 @@ def _apply_decision_result(
     from .routers import route_after_decision
 
     state["decision_route"] = route_after_decision(state)
+    _append_decision_trace_events(state, result)
     return append_trace(
         state,
         "decide_request",
@@ -1060,6 +1069,63 @@ def _apply_decision_result(
             "error_codes": [error["code"] for error in errors],
         },
     )
+
+
+def _append_decision_trace_events(
+    state: OperationsAgentState,
+    result: DecisionEngineResult,
+) -> None:
+    metadata = result.metadata
+    if metadata.source not in {"llm", "rule_fallback"}:
+        return
+
+    for error in result.errors:
+        if error.attempt >= metadata.attempt_count:
+            continue
+        event_type = None
+        if error.code in {"invalid_json", "schema_validation_error"}:
+            event_type = "llm_decision_repair"
+        elif error.retryable:
+            event_type = "llm_decision_retry"
+        if event_type:
+            append_trace(
+                state,
+                "decide_request",
+                {
+                    "attempt": error.attempt,
+                    "error_code": error.code,
+                },
+                event_type=event_type,
+            )
+
+    terminal_metadata = {
+        "source": state.get("decision_source", metadata.source),
+        "intent": state.get("intent", result.decision.intent),
+        "confidence": state.get("confidence", result.decision.confidence),
+        "route": state.get("decision_route", ""),
+        "provider": metadata.provider,
+        "model": metadata.model,
+        "attempt_count": metadata.attempt_count,
+        "repair_count": metadata.repair_count,
+        "latency_ms": metadata.latency_ms,
+        "input_tokens": metadata.input_tokens,
+        "output_tokens": metadata.output_tokens,
+    }
+    if metadata.source == "rule_fallback":
+        terminal_metadata["fallback_reason"] = metadata.fallback_reason
+        append_trace(
+            state,
+            "decide_request",
+            terminal_metadata,
+            event_type="llm_decision_fallback",
+        )
+    else:
+        append_trace(
+            state,
+            "decide_request",
+            terminal_metadata,
+            event_type="llm_decision_completed",
+        )
 
 
 def _set_decision_escalation(
