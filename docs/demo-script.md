@@ -89,3 +89,23 @@ python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
 ```
 
 预期结果：replay 会按执行顺序展示节点序列、确认拦截、工具调用、RAG 检索事件和最终回复摘要。
+
+## 8. 混合决策韧性与真实模型对比
+
+混合 LLM 决策只解释用户意图和槽位，确定性 Tool Gateway 继续控制工具白名单、参数、确认和写操作。超时重试与 JSON/Schema 修复共用硬性的共享三次调用预算，成功结果经 LangGraph 条件路由进入业务分支，预算耗尽则规则回退。
+
+先运行不需要凭据的确定性韧性演示：
+
+```powershell
+python scripts/demo_decision_resilience.py
+```
+
+预期结果：依次展示非法 JSON 后修复、三次超时后回退、合法确认和拒绝确认，并在汇总中报告 `unsafe_write_count=0`。这是脚本化 fake client 的控制流证据，不是模型准确率证据。
+
+配置真实 provider 后，才运行可选的真实模型语义对比：
+
+```powershell
+python -m harness.runners.run_decision_comparison --dataset harness/datasets/decision_long_tail_cases.yaml --require-live-model
+```
+
+当前没有可审计的 live 报告，因此不声明准确率提升。演示时还应明确：模型输出具有非确定性，真实模型路径依赖凭据，当前没有分布式熔断器，也没有线上业务结果证据。

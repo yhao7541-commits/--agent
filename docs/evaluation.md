@@ -10,6 +10,24 @@ python -m harness.runners.run_all --smoke
 
 运行器会加载 YAML 用例、执行运营 graph、应用 evaluator 检查，并输出 JSON 报告。
 
+## 混合决策的两类验证
+
+混合 LLM 决策与确定性 Tool Gateway 分开验证：前者检查结构化意图/槽位、重试、修复和回退，后者继续检查工具白名单、确认与副作用。超时重试和 JSON/Schema 修复使用同一个硬性的共享三次调用预算；有效决策再由 LangGraph 条件路由分发，失败时进入规则回退。
+
+不依赖凭据的确定性韧性演示使用脚本化 fake client，可重复覆盖 JSON 修复、超时耗尽回退、确认接受和确认拒绝：
+
+```bash
+python scripts/demo_decision_resilience.py
+```
+
+可选的真实模型语义对比使用冻结的 long-tail 数据集，并且必须显式提供可构造原生超时客户端的 provider 配置：
+
+```bash
+python -m harness.runners.run_decision_comparison --dataset harness/datasets/decision_long_tail_cases.yaml --require-live-model
+```
+
+这两类证据不能混用：确定性韧性演示证明控制流和安全边界，不证明语义效果；真实模型对比才可用于比较 rules 与 hybrid。当前没有生成可审计的真实模型报告，因此不声明准确率提升，也不提供 live 指标。模型输出具有非确定性，真实模型路径依赖凭据，当前进程内实现没有分布式熔断器，并且没有线上业务结果证据。
+
 JSON 报告包含用于发布审查的 `governance` 区块：
 
 - `failed_thresholds`：列出低于门槛的指标。
@@ -59,4 +77,4 @@ JSON 报告包含用于发布审查的 `governance` 区块：
 | `security_policy_accuracy` | 1.00 | 0.90 |
 | `p95_latency_ms` | 已报告 | 不适用 |
 
-当前 smoke 套件包含 184 条用例，所有指标均通过初始门槛。下一步扩展方向是加入更难的多轮和边界场景，而不是只扩大当前 smoke 覆盖。
+当前 smoke 套件包含 186 条用例，所有指标均通过初始门槛。这些数字来自确定性 smoke，不代表混合 LLM 决策相对规则方案的提升。下一步扩展方向是加入更难的多轮和边界场景，而不是只扩大当前 smoke 覆盖。

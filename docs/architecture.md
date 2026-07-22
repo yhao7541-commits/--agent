@@ -24,6 +24,14 @@
 
 关键工程边界是：graph 负责任务规划，gateway 负责工具执行治理，observability 负责记录实际发生的过程。原有 service 和 database 层继续服务旧应用入口。
 
+## 混合决策边界
+
+混合 LLM 决策只负责生成结构化的意图、槽位、置信度和歧义；确定性 Tool Gateway 掌握工具白名单、schema、权限、确认与副作用。模型建议不能变成任意工具名，也不能绕过写操作确认。
+
+决策引擎把超时重试与 JSON/Schema 修复计入同一个硬性的共享三次调用预算。有效模型结果进入 LangGraph 条件路由；预算耗尽、总截止时间超限、配置不可用或低置信度则进入规则回退。确认接受、确认拒绝和硬安全命中是无模型快速路径，因此不会为已经确定的动作再调用模型。
+
+该边界已经由 fake client 的确定性韧性演示和回归测试覆盖；可选的真实模型语义对比需要单独提供 provider 凭据。当前没有真实模型报告，所以不声明准确率提升。运行时仍受模型输出具有非确定性、真实模型路径依赖凭据以及没有分布式熔断器的限制，也没有线上业务结果证据。
+
 RAG grounding 由 `RAG_BACKEND` 选择。默认 `local` 后端使用仓库内确定性知识文件，保证 CI 和评估稳定；设置 `RAG_BACKEND=mcp` 后，`search_knowledge_base` 会通过外部 stdio MCP 服务执行，服务命令由 `RAG_MCP_COMMAND`、`RAG_MCP_ARGS` 和 `RAG_MCP_CWD` 配置。`RAG_MCP_COLLECTION` 是可选项，只有配置后才会传给外部服务。可以用 `python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1` 验证 MCP 服务可达，并确认目标 collection 能返回带来源的 chunk。需要强制校验来源时，加上 `--require-source booking_policy.md`，这样没有命中预期 wellness 知识域时诊断会失败。
 
 本地 `D:\Dev\RAG\MODULAR-RAG-MCP-SERVER` 服务提供 `list_collections`；导入 `docs/knowledge` 后，应能看到包含 wellness 政策文档的 `wellness_service_ops`。这属于部署配置，不是代码依赖：应用只从环境变量读取 collection 名称。
