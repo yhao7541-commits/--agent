@@ -60,6 +60,11 @@ class MemoryStore:
             visible_memories.append(memory)
         return visible_memories
 
+    def close(self) -> None:
+        """Close the underlying SQLite connection."""
+        with self._lock:
+            self._connection.close()
+
     def get_memory(
         self,
         user_id: str,

@@ -1,4 +1,6 @@
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 from pydantic import BaseModel
 
@@ -20,6 +22,23 @@ def get_customer_memory_store() -> MemoryStore:
     if _memory_store is None:
         _memory_store = MemoryStore.from_env()
     return _memory_store
+
+
+@contextmanager
+def isolated_customer_memory_store(db_path: str | Path) -> Iterator[MemoryStore]:
+    """Temporarily install and then close an evaluation-only memory store.
+
+    This process-global seam is intended only for sequential offline evaluation.
+    """
+    global _memory_store
+    previous_store = _memory_store
+    evaluation_store = MemoryStore(db_path=db_path)
+    _memory_store = evaluation_store
+    try:
+        yield evaluation_store
+    finally:
+        evaluation_store.close()
+        _memory_store = previous_store
 
 
 def write_customer_preference(arguments: BaseModel, context) -> dict:
