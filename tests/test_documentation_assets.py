@@ -56,7 +56,7 @@ def test_hybrid_decision_docs_describe_verified_runtime_without_uplift_claims():
         "LangGraph 条件路由",
         "确定性韧性演示",
         "可选的真实模型语义对比",
-        "不声明准确率提升",
+        "不声明整体准确率提升",
         "模型输出具有非确定性",
         "真实模型路径依赖凭据",
         "没有分布式熔断器",
@@ -66,3 +66,26 @@ def test_hybrid_decision_docs_describe_verified_runtime_without_uplift_claims():
 
     assert "186 条" in documents["README.md"]
     assert "186 条" in documents["docs/evaluation.md"]
+
+
+def test_docs_record_verified_live_comparison_without_hiding_regressions():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    evaluation = (ROOT / "docs/evaluation.md").read_text(encoding="utf-8")
+    combined = f"{readme}\n{evaluation}"
+
+    for required_text in (
+        "2026-07-22",
+        "43.3% → 76.7%",
+        "63.3% → 83.3%",
+        "0% → 72.0%",
+        "39.1%",
+        "25/25",
+        "0%",
+        "1,849 ms",
+        "3,276 ms",
+        "19,377",
+        "2,457",
+        "pricing_unavailable",
+        "bad cases",
+    ):
+        assert required_text in combined

@@ -108,4 +108,4 @@ python scripts/demo_decision_resilience.py
 python -m harness.runners.run_decision_comparison --dataset harness/datasets/decision_long_tail_cases.yaml --require-live-model
 ```
 
-当前没有可审计的 live 报告，因此不声明准确率提升。演示时还应明确：模型输出具有非确定性，真实模型路径依赖凭据，当前没有分布式熔断器，也没有线上业务结果证据。
+2026-07-22 已完成一次 30 条冻结案例的 live 对比，聚合指标和 bad cases 见 `docs/evaluation.md`。结果包含局部提升和槽位精度退化，因此不声明整体准确率提升。演示时还应明确：模型输出具有非确定性，真实模型路径依赖凭据，当前没有分布式熔断器，也没有线上业务结果证据。

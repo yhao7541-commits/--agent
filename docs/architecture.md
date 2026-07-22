@@ -30,7 +30,7 @@
 
 决策引擎把超时重试与 JSON/Schema 修复计入同一个硬性的共享三次调用预算。有效模型结果进入 LangGraph 条件路由；预算耗尽、总截止时间超限、配置不可用或低置信度则进入规则回退。确认接受、确认拒绝和硬安全命中是无模型快速路径，因此不会为已经确定的动作再调用模型。
 
-该边界已经由 fake client 的确定性韧性演示和回归测试覆盖；可选的真实模型语义对比需要单独提供 provider 凭据。当前没有真实模型报告，所以不声明准确率提升。运行时仍受模型输出具有非确定性、真实模型路径依赖凭据以及没有分布式熔断器的限制，也没有线上业务结果证据。
+该边界已经由 fake client 的确定性韧性演示和回归测试覆盖；可选的真实模型语义对比需要单独提供 provider 凭据。2026-07-22 已完成一次 30 条冻结案例的真实对比，结果与 bad cases 记录在 `docs/evaluation.md`；由于槽位精度仍有明显退化，不声明整体准确率提升。运行时仍受模型输出具有非确定性、真实模型路径依赖凭据以及没有分布式熔断器的限制，也没有线上业务结果证据。
 
 RAG grounding 由 `RAG_BACKEND` 选择。默认 `local` 后端使用仓库内确定性知识文件，保证 CI 和评估稳定；设置 `RAG_BACKEND=mcp` 后，`search_knowledge_base` 会通过外部 stdio MCP 服务执行，服务命令由 `RAG_MCP_COMMAND`、`RAG_MCP_ARGS` 和 `RAG_MCP_CWD` 配置。`RAG_MCP_COLLECTION` 是可选项，只有配置后才会传给外部服务。可以用 `python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1` 验证 MCP 服务可达，并确认目标 collection 能返回带来源的 chunk。需要强制校验来源时，加上 `--require-source booking_policy.md`，这样没有命中预期 wellness 知识域时诊断会失败。
 
