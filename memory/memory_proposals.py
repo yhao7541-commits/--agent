@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
+from pydantic import ValidationError
+
 from .customer_memory import MemoryProposal
 from .memory_policy import (
     is_vague_memory_statement,
@@ -8,26 +13,40 @@ from .memory_policy import (
 )
 
 
-def extract_memory_proposals(message: str) -> list[MemoryProposal]:
+LLMMemoryExtractor = Callable[[str], dict[str, Any] | MemoryProposal | None]
+
+
+def extract_memory_proposals(
+    message: str,
+    llm_extractor: LLMMemoryExtractor | None = None,
+) -> list[MemoryProposal]:
     normalized = message.strip()
     if not normalized or is_vague_memory_statement(normalized):
         return []
 
     proposal = _extract_single_memory(normalized)
+    if proposal:
+        return [proposal]
+
+    if llm_extractor is None:
+        return []
+
+    llm_output = llm_extractor(normalized)
+    proposal = _coerce_llm_memory_proposal(llm_output)
     return [proposal] if proposal else []
 
 
 def _extract_single_memory(message: str) -> MemoryProposal | None:
     if "过敏" in message:
         return _proposal(
-            memory_type="constraint",
+            memory_type="service_contraindication",
             content="对精油过敏" if "精油" in message else "存在过敏约束",
             evidence=message,
             confidence=0.92,
         )
-    if "不要营销" in message or "别营销" in message:
+    if _is_no_marketing_request(message):
         return _proposal(
-            memory_type="policy_note",
+            memory_type="marketing_consent",
             content="不要营销推荐",
             evidence=message,
             confidence=0.9,
@@ -56,6 +75,12 @@ def _extract_single_memory(message: str) -> MemoryProposal | None:
     return None
 
 
+def _is_no_marketing_request(message: str) -> bool:
+    if "营销" not in message:
+        return False
+    return any(marker in message for marker in ("不要", "别", "不接受", "拒绝", "别给我发", "不要给我发"))
+
+
 def _proposal(
     memory_type: str,
     content: str,
@@ -71,3 +96,15 @@ def _proposal(
         sensitivity=sensitivity,
         requires_confirmation=memory_requires_confirmation(memory_type, sensitivity),
     )
+
+
+def _coerce_llm_memory_proposal(output: dict[str, Any] | MemoryProposal | None) -> MemoryProposal | None:
+    if output is None:
+        return None
+    if isinstance(output, MemoryProposal):
+        return output
+    try:
+        proposal = MemoryProposal.model_validate(output)
+    except ValidationError:
+        return None
+    return proposal

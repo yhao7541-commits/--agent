@@ -32,6 +32,11 @@ async def operations_console(request: Request):
     """Render the stateful operations runtime console."""
     return templates.TemplateResponse(request, "operations_console.html")
 
+@router.get("/memory", response_class=HTMLResponse, summary="Memory operations console")
+async def memory_operations(request: Request):
+    """Render the customer memory management console."""
+    return templates.TemplateResponse(request, "memory_management.html")
+
 @router.post("/chat/stream", summary="流式聊天")
 async def chat_stream_endpoint(chat: ChatRequest):
     """处理流式聊天请求"""

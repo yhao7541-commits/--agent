@@ -1,29 +1,51 @@
 """
-简化的预约API
+预约兼容 API
 
-只保留第一版核心功能
+旧 URL 保留，内部统一交给 OperationsAgent 编排和 Tool Gateway 写确认。
 """
+import uuid
+
 from fastapi import APIRouter, HTTPException
-from .core.response_models import (
-    AppointmentRequest,
-    DataResponse
-)
+
+from agents.operations import OperationsAgent
+from .core.response_models import AppointmentRequest, DataResponse
+
 
 router = APIRouter(prefix="/api/appointment", tags=["预约管理"])
+operations_agent = OperationsAgent()
 
 
 @router.post("/create", response_model=DataResponse)
 async def create_appointment(request: AppointmentRequest):
-    """创建预约"""
+    """提交预约请求，返回 Operations 写操作确认结果。"""
     try:
-        # 简化实现 - 直接导入需要的服务
-        from agents.appointment_agent import AppointmentAgent
-        agent = AppointmentAgent()
-        result = await agent.process_appointment_request(request.dict())
-        
-        return DataResponse(
-            message="预约创建成功",
-            data=result
+        message_parts = [f"我想预约{request.preferred_time}的{request.service_type}"]
+        if request.notes:
+            message_parts.append(request.notes)
+
+        result = await operations_agent.arun_turn(
+            {
+                "user_id": request.user_id,
+                "conversation_id": f"appointment_{uuid.uuid4().hex[:8]}",
+                "message": "，".join(message_parts),
+                "booking_slots": {
+                    "service_type": request.service_type,
+                    "date": request.preferred_time,
+                    "time_window": request.preferred_time,
+                },
+                "booking_slot_sources": {
+                    "service_type": "api_request",
+                    "date": "api_request",
+                    "time_window": "api_request",
+                },
+            }
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+
+        return DataResponse(
+            message="预约请求已进入确认流程"
+            if result.get("confirmation_required")
+            else "预约请求已处理",
+            data=result,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

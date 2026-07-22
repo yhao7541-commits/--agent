@@ -1,3 +1,3 @@
-# Services
+# 服务项目
 
-Core wellness services include shoulder and neck relaxation, massage, and tuina-style bodywork. Suitability depends on customer condition and preference.
+核心养生服务包括肩颈放松、按摩和推拿类身体护理。具体是否适合客户，需要结合客户身体状态和个人偏好判断。

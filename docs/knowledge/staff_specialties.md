@@ -1,3 +1,3 @@
-# Staff Specialties
+# 技师专长
 
-Staff matching should consider service type, availability, customer preference, and whether a specialist is required.
+技师匹配应综合考虑服务类型、技师可用时间、客户偏好，以及该服务是否需要专门技师处理。

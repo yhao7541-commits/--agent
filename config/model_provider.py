@@ -31,6 +31,10 @@ CHAT_PROVIDERS = {"openai", "qwen", "deepseek", "zhipu", "openai-compatible"}
 EMBEDDING_PROVIDERS = {"openai", "qwen", "zhipu", "openai-compatible"}
 
 
+class ModelConfigurationError(RuntimeError):
+    """Raised when a caller requires a configured remote chat model."""
+
+
 def _env(name: str, default: str | None = None) -> str | None:
     value = os.getenv(name)
     return value if value not in (None, "") else default
@@ -41,7 +45,9 @@ def _configured(name: str) -> bool:
     if not value:
         return False
     normalized = value.strip().lower()
-    return not (normalized.startswith("your_") or normalized.endswith("_here"))
+    return bool(normalized) and not (
+        normalized.startswith("your_") or normalized.endswith("_here")
+    )
 
 
 def get_model_provider() -> str:
@@ -49,7 +55,12 @@ def get_model_provider() -> str:
     return (_env("MODEL_PROVIDER", "azure") or "azure").strip().lower()
 
 
-def create_chat_model(temperature: float = 0):
+def create_chat_model(
+    temperature: float = 0,
+    *,
+    request_timeout: float | None = None,
+    require_configured: bool = False,
+):
     """Create a chat model from environment configuration.
 
     Azure-compatible env vars:
@@ -65,25 +76,41 @@ def create_chat_model(temperature: float = 0):
 
     if provider == "azure":
         if not _has_azure_chat_config():
+            if require_configured:
+                raise ModelConfigurationError("Chat model configuration is required.")
             return LocalRuleBasedChatModel(temperature=temperature)
-        return AzureChatOpenAI(
-            azure_deployment=_env("AZURE_OPENAI_DEPLOYMENT"),
-            api_version=_env("AZURE_OPENAI_VERSION"),
-            temperature=temperature,
-            azure_endpoint=_env("AZURE_OPENAI_ENDPOINT"),
-            api_key=SecretStr(_env("AZURE_OPENAI_API_KEY", "") or ""),
-        )
+        model_kwargs: dict[str, Any] = {
+            "azure_deployment": _env("AZURE_OPENAI_DEPLOYMENT"),
+            "api_version": _env("AZURE_OPENAI_VERSION"),
+            "temperature": temperature,
+            "azure_endpoint": _env("AZURE_OPENAI_ENDPOINT"),
+            "api_key": SecretStr(_env("AZURE_OPENAI_API_KEY", "") or ""),
+            "timeout": request_timeout,
+        }
+        if require_configured:
+            model_kwargs["max_retries"] = 0
+        return AzureChatOpenAI(**model_kwargs)
 
     if provider in CHAT_PROVIDERS:
-        if not _configured("LLM_API_KEY"):
+        if not _has_openai_compatible_chat_config(
+            provider, require_configured=require_configured
+        ):
+            if require_configured:
+                raise ModelConfigurationError("Chat model configuration is required.")
             return LocalRuleBasedChatModel(temperature=temperature)
-        return ChatOpenAI(
-            model=_env("LLM_MODEL", "qwen-plus") or "qwen-plus",
-            api_key=SecretStr(_env("LLM_API_KEY", "") or ""),
-            base_url=_env("LLM_BASE_URL"),
-            temperature=temperature,
-        )
+        model_kwargs = {
+            "model": _env("LLM_MODEL", "qwen-plus") or "qwen-plus",
+            "api_key": SecretStr(_env("LLM_API_KEY", "") or ""),
+            "base_url": _env("LLM_BASE_URL"),
+            "temperature": temperature,
+            "timeout": request_timeout,
+        }
+        if require_configured:
+            model_kwargs["max_retries"] = 0
+        return ChatOpenAI(**model_kwargs)
 
+    if require_configured:
+        raise ModelConfigurationError("Chat model configuration is required.")
     raise ValueError(
         f"Unsupported MODEL_PROVIDER={provider!r}. "
         "Use azure, qwen, deepseek, zhipu, openai, or openai-compatible."
@@ -132,6 +159,20 @@ def _has_azure_chat_config() -> bool:
             "AZURE_OPENAI_VERSION",
         )
     )
+
+
+def _has_openai_compatible_chat_config(
+    provider: str, *, require_configured: bool
+) -> bool:
+    if not _configured("LLM_API_KEY"):
+        return False
+    if not require_configured:
+        return True
+    if not _configured("LLM_MODEL"):
+        return False
+    if provider == "openai":
+        return _env("LLM_BASE_URL") is None or _configured("LLM_BASE_URL")
+    return _configured("LLM_BASE_URL")
 
 
 def _has_azure_embedding_config() -> bool:

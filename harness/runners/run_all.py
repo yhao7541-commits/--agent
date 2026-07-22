@@ -53,7 +53,8 @@ def load_cases(dataset_dir: Path | None = None) -> list[dict[str, Any]]:
     cases: list[dict[str, Any]] = []
     for path in sorted(dataset_dir.glob("*.yaml")):
         loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or []
-        cases.extend(loaded)
+        if isinstance(loaded, list):
+            cases.extend(loaded)
     return cases
 
 

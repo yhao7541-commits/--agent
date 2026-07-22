@@ -23,7 +23,7 @@ def test_sensitive_memory_requires_confirmation():
     proposals = extract_memory_proposals("我对精油过敏，请以后不要用")
 
     assert len(proposals) == 1
-    assert proposals[0].type == "constraint"
+    assert proposals[0].type == "service_contraindication"
     assert proposals[0].sensitivity == "sensitive"
     assert proposals[0].requires_confirmation is True
 

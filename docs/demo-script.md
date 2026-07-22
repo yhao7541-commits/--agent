@@ -1,44 +1,44 @@
-# Demo Script
+# 演示脚本
 
-Use `/api/operations/chat` or the `/operations` console for these demos.
+以下演示可以使用 `/api/operations/chat`，也可以使用 `/operations` 控制台。
 
-## 1. Incomplete Booking
+## 1. 预约信息不完整
 
-User: `我想约一个肩颈放松`
+用户：`我想约一个肩颈放松`
 
-Expected: intent is booking, missing date and time, no `create_booking` execution.
+预期结果：意图识别为预约，但缺少日期和时间，不会执行 `create_booking`。
 
-## 2. Complete Booking Requires Confirmation
+## 2. 信息完整的预约需要确认
 
-User: `我想明天下午3点约肩颈放松`
+用户：`我想明天下午3点约肩颈放松`
 
-Expected: the agent plans read tools and `create_booking`, but the gateway returns a confirmation request before any write succeeds.
+预期结果：Agent 会规划读取工具和 `create_booking`，但 gateway 会在任何写操作成功前返回确认请求。
 
-More realistic time expressions:
+更贴近真实用户的时间表达：
 
 - `我想明天下午3点半约肩颈放松` -> `time_window=15:30`
-- `我想后天上午10点约推拿` -> date is normalized to the day after tomorrow
-- `我想下周五晚上7点约按摩` -> date is normalized to next week's Friday
+- `我想后天上午10点约推拿` -> 日期会标准化为后天
+- `我想下周五晚上7点约按摩` -> 日期会标准化为下周五
 
-## 3. Confirmed Booking Executes Write
+## 3. 确认后才执行写入
 
-Send the previous `confirmation_request.tool_name` and `confirmation_request.arguments` back with message `确认`.
+把上一步返回的 `confirmation_request.tool_name` 和 `confirmation_request.arguments` 随消息 `确认` 一起发回。
 
-Expected: `create_booking` succeeds and the reply includes a booking id.
+预期结果：`create_booking` 执行成功，回复中包含预约 ID。
 
-## 4. Policy Question Uses RAG
+## 4. 政策问题使用 RAG
 
-User: `如果我迟到20分钟会怎么样？`
+用户：`如果我迟到20分钟会怎么样？`
 
-Expected: `search_knowledge_base` runs and trace metadata includes source chunks from `booking_policy.md`.
+预期结果：系统执行 `search_knowledge_base`，trace metadata 中包含来自 `booking_policy.md` 的来源 chunk。
 
-Local deterministic mode:
+本地确定性模式：
 
 ```powershell
 $env:RAG_BACKEND="local"
 ```
 
-MCP-backed mode:
+MCP 接入模式：
 
 ```powershell
 $env:RAG_BACKEND="mcp"
@@ -50,42 +50,62 @@ $env:RAG_MCP_TIMEOUT_SECONDS="45"
 python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1
 ```
 
-Expected for the diagnostic: `ok=true`, `chunk_count >= 1`, and `chunks[].source` includes a wellness policy document such as `booking_policy.md`.
+诊断预期：`ok=true`、`chunk_count >= 1`，并且 `chunks[].source` 包含 `booking_policy.md` 等 wellness 政策文档。
 
-Optional domain gate:
+可选的知识域校验：
 
 ```powershell
 python scripts/check_mcp_rag.py --collection wellness_service_ops --query "late arrival policy" --min-chunks 1 --require-source booking_policy.md
 ```
 
-Expected: this command exits zero only when the external MCP collection contains the wellness booking policy source.
+预期结果：只有当外部 MCP collection 包含 wellness 预约政策来源时，这条命令才会以 0 退出码结束。
 
-## 5. Preference Creates Memory Proposal
+## 5. 偏好表达生成记忆 proposal
 
-User: `我以后都喜欢安静一点的房间`
+用户：`我以后都喜欢安静一点的房间`
 
-Expected: a memory proposal is produced and `write_customer_preference` requires confirmation.
+预期结果：系统生成 memory proposal，并且 `write_customer_preference` 需要用户确认。
 
-## 6. Stored Preference Is Applied To Booking
+## 6. 已存偏好会应用到预约
 
-Confirm the memory proposal, then send:
+先确认 memory proposal，然后发送：
 
-User: `我想明天下午3点约肩颈放松`
+用户：`我想明天下午3点约肩颈放松`
 
-Expected: the booking confirmation summary includes the quiet-room preference, `memory_used=true`, `applied_customer_memories[]` lists the stored preference, and trace metadata shows the loaded/applied memory counts.
+预期结果：预约确认摘要包含安静房间偏好，`memory_used=true`，`applied_customer_memories[]` 列出已应用的客户偏好，trace metadata 显示加载和应用的记忆数量。
 
-## 7. Trace Replay
+## 7. Trace 回放
 
-Set a trace path before running the operations request:
+执行 operations 请求前先设置 trace 路径：
 
 ```powershell
 $env:OPERATIONS_TRACE_STORE_PATH="data/traces.jsonl"
 ```
 
-After the API response returns a `trace_id`, run:
+API 响应返回 `trace_id` 后，运行：
 
 ```powershell
 python -m observability.replay --trace-id <trace_id> --path data/traces.jsonl
 ```
 
-Expected: replay shows the node sequence, confirmation interception, tool calls, RAG retrieval events, and final response summary in execution order.
+预期结果：replay 会按执行顺序展示节点序列、确认拦截、工具调用、RAG 检索事件和最终回复摘要。
+
+## 8. 混合决策韧性与真实模型对比
+
+混合 LLM 决策只解释用户意图和槽位，确定性 Tool Gateway 继续控制工具白名单、参数、确认和写操作。超时重试与 JSON/Schema 修复共用硬性的共享三次调用预算，成功结果经 LangGraph 条件路由进入业务分支，预算耗尽则规则回退。
+
+先运行不需要凭据的确定性韧性演示：
+
+```powershell
+python scripts/demo_decision_resilience.py
+```
+
+预期结果：依次展示非法 JSON 后修复、三次超时后回退、合法确认和拒绝确认，并在汇总中报告 `unsafe_write_count=0`。这是脚本化 fake client 的控制流证据，不是模型准确率证据。
+
+配置真实 provider 后，才运行可选的真实模型语义对比：
+
+```powershell
+python -m harness.runners.run_decision_comparison --dataset harness/datasets/decision_long_tail_cases.yaml --require-live-model
+```
+
+2026-07-22 已完成一次 30 条冻结案例的 live 对比，聚合指标和 bad cases 见 `docs/evaluation.md`。结果包含局部提升和槽位精度退化，因此不声明整体准确率提升。演示时还应明确：模型输出具有非确定性，真实模型路径依赖凭据，当前没有分布式熔断器，也没有线上业务结果证据。

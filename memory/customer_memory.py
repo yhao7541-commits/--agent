@@ -28,9 +28,15 @@ class CustomerMemory(BaseModel):
     evidence: str
     confidence: float
     sensitivity: str
+    status: str = "active"
+    review_status: str = "approved"
+    source_conversation_id: str = ""
+    source_trace_id: str = ""
+    expires_at: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     deleted_at: datetime | None = None
+    version: int = 1
 
 
 class MemoryWriteResult(BaseModel):

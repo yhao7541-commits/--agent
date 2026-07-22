@@ -87,6 +87,7 @@ class CustomerPreferenceInput(BaseModel):
 class CustomerPreferenceOutput(BaseModel):
     memory_id: str
     status: str
+    review_status: str | None = None
 
 
 class CustomerMemoryDeleteInput(BaseModel):
