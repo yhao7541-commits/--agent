@@ -303,6 +303,13 @@
                     <div class="reply" id="reply-panel">尚未运行对话。</div>
                 </section>
 
+                <section class="panel" id="decision-panel">
+                    <h2>LLM 决策诊断</h2>
+                    <div class="kv"><span>决策来源</span><span id="decision-source-value">-</span></div>
+                    <div class="kv"><span>置信度</span><span id="decision-confidence-value">-</span></div>
+                    <pre id="decision-json">{}</pre>
+                </section>
+
                 <section class="panel" id="confirmation-panel">
                     <h2>确认信息</h2>
                     <div id="confirmation-status"><span class="badge">无</span></div>
@@ -352,6 +359,10 @@
             return JSON.stringify(value ?? {}, null, 2);
         }
 
+        function displayValue(value) {
+            return value === null || value === undefined || value === "" ? "-" : String(value);
+        }
+
         function setStatus(text, kind = "") {
             $("runtime-status").innerHTML = kind ? `<span class="badge ${kind}">${text}</span>` : text;
         }
@@ -359,9 +370,24 @@
         function render(data) {
             state.lastResponse = data;
             state.pendingConfirmation = data.confirmation_required ? data.confirmation_request : null;
+            const decision = data.decision || {};
             $("intent-value").textContent = data.intent || "-";
             $("trace-id-value").textContent = data.trace_id || "-";
             $("reply-panel").textContent = data.reply || "";
+            $("decision-source-value").textContent = displayValue(decision.source);
+            $("decision-confidence-value").textContent = displayValue(decision.confidence);
+            $("decision-json").textContent = asJson({
+                intent: displayValue(decision.intent),
+                route: displayValue(decision.route),
+                provider: displayValue(decision.provider),
+                model: displayValue(decision.model),
+                attempt_count: displayValue(decision.attempt_count),
+                repair_count: displayValue(decision.repair_count),
+                fallback_reason: displayValue(decision.fallback_reason),
+                latency_ms: displayValue(decision.latency_ms),
+                input_tokens: displayValue(decision.input_tokens),
+                output_tokens: displayValue(decision.output_tokens)
+            });
             $("confirmation-json").textContent = asJson(data.confirmation_request || {});
             $("tool-calls-json").textContent = asJson({
                 planned: data.tool_calls || [],

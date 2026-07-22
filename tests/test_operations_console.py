@@ -34,3 +34,7 @@ def test_operations_console_renders_runtime_panels():
     assert 'id="memory-panel"' in html
     assert 'id="rag-panel"' in html
     assert 'id="trace-panel"' in html
+    assert 'id="decision-panel"' in html
+    assert 'id="decision-source-value"' in html
+    assert 'id="decision-confidence-value"' in html
+    assert 'id="decision-json"' in html
